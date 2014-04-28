@@ -84,8 +84,10 @@ ProcsHUD.ProcSpells = {
 	},
 	[GameLib.CodeEnumClass.Warrior] = {
 		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.Critical },
-		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect },
-		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield }
+		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect }
+		-- TODO readd once we have the 3rd window and the noshield detection
+		--[[,
+		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield }]]--
 	},
 	[GameLib.CodeEnumClass.Stalker] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.Critical },
@@ -99,6 +101,14 @@ ProcsHUD.ProcSpells = {
 
 local CRITICAL_TIME = 5
 local DEFLECT_TIME = 4
+
+local abilitiesList = nil
+local function GetAbilitiesList()
+	if abilitiesList == nil then
+		abilitiesList = AbilityBook.GetAbilitiesList()
+	end
+	return abilitiesList
+end
 
 -- TODO:
 -- * add cooldown logic => v1: show only if active and off cooldown
@@ -122,7 +132,10 @@ function ProcsHUD:new(o)
     self.__index = self
 
 	self.lastCriticalTime = 0
-	self.tAbilities = {}
+	self.lastDeflectTime = 0
+
+	self.tActiveAbilities = {}
+	self.tSpellCache = {}
 
     return o
 end
@@ -140,10 +153,13 @@ function ProcsHUD:OnLoad()
 	self.xmlDoc = XmlDoc.CreateFromFile("ProcsHUD.xml")
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
 
-	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
+	Apollo.RegisterEventHandler("AbilityBookChange", "OnAbilityBookChange", self)
+	Apollo.RegisterEventHandler("CombatLogDamage", "OnDamageDealt", self)
+	Apollo.RegisterEventHandler("AttackMissed", "OnMiss", self)
+	Apollo.RegisterEventHandler("VarChange_FrameCount", "OnFrame", self)
 
 	if GameLib:GetPlayerUnit() then
-		self:OnCharacterCreated()
+		self:OnAbilityBookChange()
 	end
 end
 
@@ -156,55 +172,59 @@ function ProcsHUD:OnDocLoaded()
 		-- Register handlers for events, slash commands and timer, etc.
 		Apollo.LoadSprites("Icons.xml", "ProcsHUDSprites")
 
-		self.wndCritical = Apollo.LoadForm(self.xmlDoc, "ProcsEngineerCritical", nil, self)
-    	self.wndCritical:Show(true)	
-		local sprite = ProcsHUD.CodeEnumProcSpellSprite[ProcsHUD.CodeEnumProcSpellId.QuickBurst]
-		Print(sprite)
-		self.wndCritical:FindChild("Icon"):SetSprite(sprite)
-		--self.wndCritical:FindChild("Icon"):SetFillSprite(sprite)
-		--Print(self.wndCritical:FindChild("Icon"))
+		self.tWndProcs = {
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon1", nil, self),
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon2", nil, self)
+		}
 	end
 end
 
+
 -----------------------------------------------------------------------------------------------
--- Character Creation
+-- Ability detection
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:OnCharacterCreated()
-	Print("OnCharacterCreated")
+function ProcsHUD:OnAbilityBookChange()
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
 		return
-	elseif unitPlayer:GetClassId() == GameLib.CodeEnumClass.Engineer then
-		self:OnCharacterCreatedEngineer()
-	-- STOPSHIP create the other classes if needed
-	else
-		-- Not a valid class
-		if self.xmlDoc then
-			self.xmlDoc:Destroy()
-		end
+	end
+
+	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
+	if not tSpells then
+		-- Not a class that we manage in this addon
+		self:FinishAddon()
 		return
+	end
+
+	-- Clear the spell cache as the spells may have changed
+	for k in pairs(self.tSpellCache) do
+		self.tSpellCache[k] = nil
+	end
+
+    local currentActionSet = ActionSetLib.GetCurrentActionSet()
+	for _, spell in pairs(tSpells) do
+		self:CheckAbility(currentActionSet, spell[1])
 	end
 end
 
-function ProcsHUD:OnCharacterCreatedEngineer()
-	Print("OnCharacterCreatedEngineer")
-	self:OnCharacterCreatedCommon()
+function ProcsHUD:CheckAbility(currentActionSet, spellId)
+    self.tActiveAbilities[spellId] = false
 
-	-- Listen for crit
-	Apollo.RegisterEventHandler("CombatLogDamage", "OnDamageDealt", self)
+    if not currentActionSet then
+        return
+    end
 
+    for _, nAbilityId in pairs(currentActionSet) do
+        if nAbilityId == spellId then
+            self.tActiveAbilities[spellId] = true
+            return
+        end
+    end
+
+    Print("[ProcsHUD] CheckAbility " .. spellId .. " " .. self.tActiveAbilities[spellId])
 end
 
-function ProcsHUD:OnCharacterCreatedCommon()
-	Print("OnCharacterCreatedCommon")
-	-- Update our UI every frame
-	Apollo.RegisterEventHandler("VarChange_FrameCount", "OnFrame", self)
-
-	-- Listen for ability changes
-	Apollo.RegisterEventHandler("PlayerChanged", "OnPlayerChanged", self)
-	self:OnPlayerChangedEngineer()	
-end
 
 -----------------------------------------------------------------------------------------------
 -- Main loop (on every 4 frames)
@@ -213,72 +233,44 @@ end
 function ProcsHUD:OnFrame()
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
+		-- We don't have the player object yet.
 		return
-	elseif unitPlayer:GetClassId() == GameLib.CodeEnumClass.Engineer then
-		self:OnFrameEngineer()
-	-- STOPSHIP create the other classes if needed
-	else
-		-- Not a valid class
-		if self.xmlDoc then
-			self.xmlDoc:Destroy()
+	end
+
+	if not self.tWndProcs then
+		-- We have not loaded the proc windows yet.
+		return
+	end
+
+	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
+	if not tSpells then
+		-- Not a class that we manage in this addon
+		self:FinishAddon()
+		return
+	end
+
+	local wndProcIndex = 1
+
+	-- Manage crits (we pass the wndProcIndex and we receive the new wndProcIndex if we display a window)
+	wndProcIndex = self:ProcessProcs(wndProcIndex, ProcsHUD.CodeEnumProcType.Critical, tSpells)
+
+	-- Manage deflect hits
+	wndProcIndex = self:ProcessProcs(wndProcIndex, ProcsHUD.CodeEnumProcType.Deflect, tSpells)
+
+	-- TODO manage "no shield"
+
+	-- Hide the remaining proc windows. At this point wndProcIndex is the next window to use, so we
+	-- need to hide all the remaining windows including the wndProcIndex one.
+	for index, wndProc in pairs(self.tWndProcs) do
+		if index >= wndProcIndex then
+			wndProc:Show(false)
 		end
-		return
 	end
 end
 
-function ProcsHUD:OnFrameEngineer()
-	-- Manage the critical
-	self:ShowOnCriticalEngineer()
-end
 
 -----------------------------------------------------------------------------------------------
--- Ability detection
------------------------------------------------------------------------------------------------
-
-function ProcsHUD:OnPlayerChanged() 
-	Print("OnPlayerChanged")
-	local unitPlayer = GameLib.GetPlayerUnit()
-	if not unitPlayer then
-		return
-	elseif unitPlayer:GetClassId() == GameLib.CodeEnumClass.Engineer then
-		self:OnPlayerChangedEngineer()
-	-- STOPSHIP create the other classes if needed
-	else
-		-- Not a valid class
-		if self.xmlDoc then
-			self.xmlDoc:Destroy()
-		end
-		return
-	end
-end
-
-function ProcsHUD:OnPlayerChangedEngineer() 
-	Print("OnPlayerChangedEngineer")
-	-- The ability we are looking for is QuickBurst
-    self.tAbilities[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = false;
- 
-    -- Let's test if you have the Spell
-    local currentActionSet = ActionSetLib.GetCurrentActionSet()
-    if not currentActionSet then
-        return
-    end
- 
-    for _, nAbilityId in pairs(currentActionSet) do
-        if nAbilityId == ProcsHUD.CodeEnumProcSpellId.QuickBurst then
-            self.tAbilities[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = true;
-        end
-    end
-
-    if self.tAbilities[ProcsHUD.CodeEnumProcSpellId.QuickBurst] then
-    	Print("OnPlayerChangedEngineer -- QuickBurst TRUE")
-    else
-    	Print("OnPlayerChangedEngineer -- QuickBurst FALSE")
-    end
-end
-
-
------------------------------------------------------------------------------------------------
--- Critical management
+-- Critical detection
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:OnDamageDealt(tData)
@@ -289,23 +281,155 @@ function ProcsHUD:OnDamageDealt(tData)
 	end
 end
 
-function ProcsHUD:ShowOnCriticalEngineer()
-	-- Let's test if you have the Quick Burst Ability
-	if not self.tAbilities[ProcsHUD.CodeEnumProcSpellId.QuickBurst] then
-		--self.wndCritical:Show(false)
+
+-----------------------------------------------------------------------------------------------
+-- Deflect detection
+-----------------------------------------------------------------------------------------------
+
+function ProcsHUD:OnMiss(unitCaster, unitTarget, eMissType)
+	if unitTarget ~= nil and unitTarget == GameLib.GetPlayerUnit() then
+		if eMissType == GameLib.CodeEnumMissType.Dodge then
+			self.lastDeflectTime = os.time()
+		end
+	end
+end
+
+
+-----------------------------------------------------------------------------------------------
+-- Procs display management
+-----------------------------------------------------------------------------------------------
+
+function ProcsHUD:ProcessProcs(wndProcIndex, procType, tSpells)
+	if wndProcIndex and  procType and tSpells then
+		for _, spell in pairs(tSpells) do
+			if spell[2] == procType then
+				wndProcIndex = self:ProcessProcsForSpell(wndProcIndex, procType, spell[1])
+			end
+		end
+	end
+
+	return wndProcIndex
+end
+
+function ProcsHUD:ProcessProcsForSpell(wndProcIndex, procType, spellId)
+	local wndProc = self.tWndProcs[wndProcIndex]
+	if not wndProc then
+		-- We don't have a valid window to display the proc. This should normally never happen.
+		Print("We don't have a window to display the proc. Something went really wrong")
+		return wndProcIndex
+	end
+
+	-- Let's test if you have the spell
+	if not self.tActiveAbilities[spellId] then
+		-- You don't have the spell in your LAS. Nothing to do here.
+		return wndProcIndex
+	end
+
+	-- Let's check if the spell is not in cooldown
+	local cooldownLeft, cooldownTotalDuration, chargesLeft = self:GetSpellCooldown(spellId)
+	-- TODO improve that to show the cooldown
+	if cooldownLeft > 0 and chargesLeft == 0 then
+		-- The spell is in cooldown and we don't have any charge left (for a spell with charges). Nothing to do here.
+		return wndProcIndex
+	end
+
+	local shouldShowProc = false
+	if procType == ProcsHUD.CodeEnumProcType.Critical then -- Let's check if we scored a critical
+		shouldShowProc = os.difftime(os.time(), self.lastCriticalTime) < CRITICAL_TIME
+	elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
+		shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
+	else if procType == ProcsHUD.CodeEnumProcType.NoShield
+		-- TODO implement
+	end
+
+	-- Let's see if we need to show the proc
+	if shouldShowProc then
+		-- Update the sprite in the proc view
+		local sprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
+		wndProc:FindChild("Icon"):SetSprite(sprite)
+
+		-- Show the proc view
+		wndProc:Show(true)
+
+		-- Increment the wndProcIndex as we shown a window
+		wndProcIndex = wndProcIndex + 1
+	end
+
+	return wndProcIndex
+end
+
+
+-----------------------------------------------------------------------------------------------
+-- Utility methods cleanup
+-----------------------------------------------------------------------------------------------
+
+-- @return {time remaining, duration, remaining charges}
+function ProcsHUD:GetSpellCooldown(spellId)
+	local splObject = self:GetSpellById(spellId)
+	if not splObject then
+		Print("GetSpellCooldown called with a non-existing spell " .. spellId)
+		return 0, 0, 0
+	end
+
+	local charges = splObject:GetAbilityCharges()
+	if charges and charges.nChargesMax > 0 then
+		-- Special spell with charges
+		if charges.fRechargePercentRemaining and charges.fRechargePercentRemaining > 0 then -- We are recharging charges
+			return charges.fRechargePercentRemaining * charges.fRechargeTime, charges.fRechargeTime, tostring(charges.nChargesRemaining)
+		end
+	else
+		-- Standard spell with cooldown
+		local time = splObject:GetCooldownRemaining()
+		if time and time > 0 then -- Time remaining is greater than 0 when on cooldown
+			return time, splObject:GetCooldownTime(), 0
+		end
+	end
+
+	-- If we are here, that means the spell is not on cooldown
+	return 0, 0, 0
+end
+
+function ProcsHUD:GetSpellById(spellId)
+	-- Let's check the cache first
+	splObject = tSpellCache[spellId]
+	if splObject then
+		return splObject
+	end
+
+	local abilities = GetAbilitiesList()
+	if not abilities then
 		return
 	end
 
-	-- We have Quick Burst. Let's check if we scored a critical
-	if os.difftime(os.time(), self.lastCriticalTime) < CRITICAL_TIME then	-- the last critical is valid
-		-- Let's show the view
-		self.wndCritical:Show(true)
-		local sprite = ProcsHUD.CodeEnumProcSpellSprite[ProcsHUD.CodeEnumProcSpellId.QuickBurst]
-		self.wndCritical:FindChild("Icon"):SetFullSprite(sprite)
-	else
-		--self.wndCritical:Show(false)
+	for _, v in pairs(abilities) do
+		if v.nId == spellId then
+			if v.bIsActive and v.nCurrentTier and v.tTiers then
+				local tier = v.tTiers[v.nCurrentTier]
+				if tier then
+					tSpellCache[spellId] = tier.splObject
+					return tier.splObject
+				end
+			end
+		end
 	end
 end
+
+
+-----------------------------------------------------------------------------------------------
+-- Addon cleanup
+-----------------------------------------------------------------------------------------------
+
+function ProcsHUD:FinishAddon() {
+	if self.xmlDoc then
+		self.xmlDoc:Destroy()
+	end
+
+	Apollo.RemoveEventHandler("AbilityBookChange", self)
+	Apollo.RemoveEventHandler("CombatLogDamage", self)
+	Apollo.RemoveEventHandler("AttackMissed", self)
+	Apollo.RemoveEventHandler("VarChange_FrameCount", self)
+}
+
 
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD Instance
