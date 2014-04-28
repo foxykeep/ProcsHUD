@@ -3,6 +3,22 @@
 -- Copyright (c) Foxykeep. All rights reserved
 -----------------------------------------------------------------------------------------------
 
+-- TODO:
+-- * Add cooldown logic => v2: show with cooldown overlay
+-- * Add cooldown logic => v3: make it possible to switch between both
+-- implementation (hidden or overlay) with an option
+
+-- * Make the proc window movable (see CandyBars)
+
+-- * Show a counter on the proc window showing how long the proc is still
+-- active
+
+-- * Options form: unlock movable frame
+-- * Options form: activate/deactivate the addon for specific spells.
+-- Should show only the spells of your class
+-- * Options form: cooldown logic (hidden / overlay)
+-- * Options form: enable/disable the proc timer
+
 require "Window"
 
 
@@ -109,18 +125,6 @@ local function GetAbilitiesList()
 	end
 	return abilitiesList
 end
-
--- TODO:
--- * add cooldown logic => v1: show only if active and off cooldown
--- * add cooldown logic => v2: show with cooldown overlay
--- * add cooldown logic => v3: make it possible to switch between both with an option
--- * manage different addon area depending on the number of possible spells (SS => 1 | Engi/Stalk/Med => 2 | Warr => 3)
--- * horizontal vs vertical line of icons if multiple?
--- * Show a counter on the icon with the remaining time where the proc is available
--- * movable frame (see CandyBars)
--- * movable frame only if options set
--- * option form: unlock movable frame
--- * option form: activate/deactivate spells. Show only the ones for the class
 
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD Initialization
