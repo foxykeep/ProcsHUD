@@ -18,6 +18,7 @@
 -- Should show only the spells of your class
 -- * Options form: cooldown logic (hidden / overlay)
 -- * Options form: enable/disable the proc timer
+-- * Slider for scaling ?
 
 require "Window"
 
@@ -141,6 +142,8 @@ function ProcsHUD:new(o)
 	self.tActiveAbilities = {}
 	self.tSpellCache = {}
 
+	self.areFramesLocked = true;
+
     return o
 end
 
@@ -162,6 +165,8 @@ function ProcsHUD:OnLoad()
 	Apollo.RegisterEventHandler("AttackMissed", "OnMiss", self)
 	Apollo.RegisterEventHandler("VarChange_FrameCount", "OnFrame", self)
 
+	Apollo.RegisterTimerHandler("AbilityBookChangerTimer", "OnAbilityBookChangerTimer", self)
+
 	if GameLib:GetPlayerUnit() then
 		self:OnAbilityBookChange()
 	end
@@ -178,7 +183,8 @@ function ProcsHUD:OnDocLoaded()
 
 		self.tWndProcs = {
 			Apollo.LoadForm(self.xmlDoc, "ProcsIcon1", nil, self),
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon2", nil, self)
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon2", nil, self),
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon3", nil, self)
 		}
 	end
 end
@@ -206,6 +212,12 @@ function ProcsHUD:OnAbilityBookChange()
 		self.tSpellCache[k] = nil
 	end
 
+	-- ActionSetLib.GetCurrentActionSet() returns the old LAS when called in
+	-- OnAbilityBookChange(). So we start a delay timer.
+	Apollo.CreateTimer("AbilityBookChangerTimer", 0.5, false)
+end
+
+function ProcsHUD:OnAbilityBookChangerTimer()
     local currentActionSet = ActionSetLib.GetCurrentActionSet()
 	for _, spell in pairs(tSpells) do
 		self:CheckAbility(currentActionSet, spell[1])
@@ -235,6 +247,11 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:OnFrame()
+	if not self.areFramesLocked then
+		-- We are in "Move frames" mode. We don't draw the normal procs in this case
+		return
+	end
+
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
 		-- We don't have the player object yet.
@@ -355,7 +372,7 @@ function ProcsHUD:ProcessProcsForSpell(wndProcIndex, procType, spellId)
 		-- Show the proc view
 		wndProc:Show(true)
 
-		-- Increment the wndProcIndex as we shown a window
+		-- Increment the wndProcIndex as we have shown a window
 		wndProcIndex = wndProcIndex + 1
 	end
 
@@ -432,6 +449,8 @@ function ProcsHUD:FinishAddon() {
 	Apollo.RemoveEventHandler("CombatLogDamage", self)
 	Apollo.RemoveEventHandler("AttackMissed", self)
 	Apollo.RemoveEventHandler("VarChange_FrameCount", self)
+
+	Apollo.StopTimer("AbilityBookChangerTimer")
 }
 
 
@@ -439,7 +458,38 @@ function ProcsHUD:FinishAddon() {
 -- ProcsSettingsUI Functions
 ---------------------------------------------------------------------------------------------------
 
-function ProcsHUD:SettingsOnClose( wndHandler, wndControl, eMouseButton )
+function ProcsHUD:SetupSettingsUI()
+
+function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)
+
+end
+
+function ProcsHUD:SettingsOnFramesLockedToggle(wndHandler, wndControl, eMouseButton)
+	local areFramesLocked = true -- STOPSHIP Get the right value from the checkbox
+
+	if self.areFramesLocked ~= areFramesLocked then
+		self.areFramesLocked = areFramesLocked
+
+		if self.areFramesLocked then
+			-- Make all the proc windows visible, show the 1/2/3 and make them movable
+			for _, wndProc in pairs(self.tWndProcs) do
+				wndProc:FindChild("Icon"):SetSprite("")
+				wndProc:FindChild("Number"):Show(true)
+				wndProc:Show(true)
+				wndProc:SetStyle("IgnoreMouse", false)
+				wndProc:SetStyle("Moveable", true)
+			end
+		else
+			-- Make all procs windows hidden (they will be made visible by the next on frame
+			-- if needed), hide the 1/2/3 and make them not movable
+			for _, wndProc in pairs(self.tWndProcs) do
+				wndProc:FindChild("Number"):Show(false)
+				wndProc:Show(false)
+				wndProc:SetStyle("IgnoreMouse", true)
+				wndProc:SetStyle("Moveable", false)
+			end
+		end
+	end
 end
 
 -----------------------------------------------------------------------------------------------
