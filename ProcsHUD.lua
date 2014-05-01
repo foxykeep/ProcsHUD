@@ -6,14 +6,10 @@
 -- TODO:
 -- * Add cooldown logic => v2: show with cooldown overlay
 -- * Add cooldown logic => v3: make it possible to switch between both
--- implementation (hidden or overlay) with an option
-
--- * Make the proc window movable (see CandyBars)
 
 -- * Show a counter on the proc window showing how long the proc is still
 -- active
 
--- * Options form: unlock movable frame
 -- * Options form: activate/deactivate the addon for specific spells.
 -- Should show only the spells of your class
 -- * Options form: cooldown logic (hidden / overlay)
@@ -116,6 +112,11 @@ ProcsHUD.ProcSpells = {
 	}
 }
 
+ProcsHUD.CodeEnumCooldownLogic {
+	Hide = 1,
+	Overlay = 2
+}
+
 local CRITICAL_TIME = 5
 local DEFLECT_TIME = 4
 
@@ -126,6 +127,27 @@ local function GetAbilitiesList()
 	end
 	return abilitiesList
 end
+
+local defaultSettings = {
+	cooldownLogic = ProcsHUD:CodeEnumCooldownLogic:Hide,
+	activeSpells = {
+		-- Engineer
+		[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Feedback] = true,
+		-- Spellslinger
+		[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = true,
+		-- Warrior
+		[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = true,
+		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = true,
+		[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = true,
+		-- Stalker
+		[ProcsHUD.CodeEnumProcSpellId.Punish] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Decimate] = true,
+		-- Medic
+		[ProcsHUD.CodeEnumProcSpellId.Atomize] = true,
+		[ProcsHUD.CodeEnumProcSpellId.DualShock] = true,
+	}
+}
 
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD Initialization
@@ -142,14 +164,50 @@ function ProcsHUD:new(o)
 	self.tActiveAbilities = {}
 	self.tSpellCache = {}
 
-	self.areFramesLocked = true;
+	self.bUnlockFrames = true;
+	self.userSettings = self.deepcopy(defaultSettings)
 
     return o
+end
+
+function ProcsHUD:InitUserSettings()
+
 end
 
 function ProcsHUD:Init()
     Apollo.RegisterAddon(self)
 end
+
+
+-----------------------------------------------------------------------------------------------
+-- ProcsHUD Save & Restore settings
+-----------------------------------------------------------------------------------------------
+
+function GotHUD:OnSave(eType)
+	if eType ~= GameLib.CodeEnumAddonSaveLevel.Character then
+		return
+	end
+
+    local tSave = {}
+    tSave.cooldownLogic = self.userSettings.cooldownLogic
+	tSave.activeSpells = self.deepcopy(self.userSettings.activeSpells)
+
+	return tSave
+end
+
+function GotHUD:OnRestore(eType, tSave)
+	if eType ~= GameLib.CodeEnumAddonSaveLevel.Character then
+		return
+	end
+
+	self.userSettings.cooldownLogic = tSave.cooldownLogic
+	if tSave.activeSpells ~= nil then
+		self.userSettings.activeSpells = self.deepcopy(tSave.activeSpells)
+	else
+		self.userSettings.activeSpells = self.deepcopy(defaultSettings.activeSpells)
+	end
+end
+
 
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD OnLoad
@@ -178,14 +236,31 @@ end
 function ProcsHUD:OnDocLoaded()
 
 	if self.xmlDoc ~= nil and self.xmlDoc:IsLoaded() then
-		-- Register handlers for events, slash commands and timer, etc.
-		Apollo.LoadSprites("Icons.xml", "ProcsHUDSprites")
+		-- Load the settings window
+	    self.wndSettings = Apollo.LoadForm(self.xmlDoc, "ProcsSettingsUI", nil, self)
+		if self.wndSettings == nil then
+			Apollo.AddAddonErrorText(self, "Could not load the settings window for some reason.")
+			return
+		end
 
+		-- Load the proc frame windows
 		self.tWndProcs = {
 			Apollo.LoadForm(self.xmlDoc, "ProcsIcon1", nil, self),
 			Apollo.LoadForm(self.xmlDoc, "ProcsIcon2", nil, self),
 			Apollo.LoadForm(self.xmlDoc, "ProcsIcon3", nil, self)
 		}
+		if not self.tWndProcs[1] or not self.tWndProcs[2] or not self.tWndProcs[3] then
+			Apollo.AddAddonErrorText(self, "Could not load the proc frame windows for some reason.")
+			return
+		end
+
+		-- Load the spell sprites
+		Apollo.LoadSprites("Icons.xml", "ProcsHUDSprites")
+
+		-- Register handlers for events, slash commands and timer, etc.
+		Apollo.RegisterSlashCommand("procshud", "ShowSettingsUI", self)
+		Apollo.RegisterSlashCommand("ProcsHud", "ShowSettingsUI", self)
+		Apollo.RegisterSlashCommand("ProcsHUD", "ShowSettingsUI", self)
 	end
 end
 
@@ -247,7 +322,7 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:OnFrame()
-	if not self.areFramesLocked then
+	if not self.bUnlockFrames then
 		-- We are in "Move frames" mode. We don't draw the normal procs in this case
 		return
 	end
@@ -321,10 +396,13 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:ProcessProcs(wndProcIndex, procType, tSpells)
-	if wndProcIndex and  procType and tSpells then
+	if wndProcIndex and procType and tSpells then
 		for _, spell in pairs(tSpells) do
 			if spell[2] == procType then
-				wndProcIndex = self:ProcessProcsForSpell(wndProcIndex, procType, spell[1])
+				-- Let's check if the user didn't deactivate the spell in the options
+				if self.userSettings.activeSpells[spell[1]] then
+					wndProcIndex = self:ProcessProcsForSpell(wndProcIndex, procType, spell[1])
+				end
 			end
 		end
 	end
@@ -381,7 +459,7 @@ end
 
 
 -----------------------------------------------------------------------------------------------
--- Utility methods cleanup
+-- Spell methods
 -----------------------------------------------------------------------------------------------
 
 -- @return {time remaining, duration, remaining charges}
@@ -458,46 +536,89 @@ function ProcsHUD:FinishAddon() {
 -- ProcsSettingsUI Functions
 ---------------------------------------------------------------------------------------------------
 
-function ProcsHUD:SetupSettingsUI()
+function ProcsHUD:ShowSettingsUI()
+	self:SetupSettingsUI()
 
-function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)
+	self.wndSettings:Show(true)
+	self.wndSettings:ToFront()
+end
+
+function ProcsHUD:SetupSettingsUI()
+	self:wndSettings:FindChild("ButtonUnlockFrames"):SetChecked(self.bUnlockFrames)
 
 end
 
+function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)
+	self.wndSettings:Show(false)
+
+	-- Lock the frames when closing the settings
+	self.bUnlockFrames = false;
+	self:UnlockFrames()
+end
+
 function ProcsHUD:SettingsOnUnlockFramesToggle(wndHandler, wndControl, eMouseButton)
-	local areFramesLocked = true -- STOPSHIP Get the right value from the checkbox
+	local bUnlockFrames = self.wndSettings:FindChild("ButtonUnlockFrames"):IsChecked()
 
-	if self.areFramesLocked ~= areFramesLocked then
-		self.areFramesLocked = areFramesLocked
+	if self.bUnlockFrames ~= bUnlockFrames then
+		self.bUnlockFrames = bUnlockFrames
+		self:UnlockFrames()
+	end
+end
 
-		if self.areFramesLocked then
-			-- Make all the proc windows visible, show the 1/2/3 and make them movable
-			for _, wndProc in pairs(self.tWndProcs) do
-				wndProc:FindChild("Icon"):SetSprite("")
-				wndProc:FindChild("Number"):Show(true)
-				wndProc:Show(true)
-				wndProc:SetStyle("IgnoreMouse", false)
-				wndProc:SetStyle("Moveable", true)
-			end
-		else
-			-- Make all procs windows hidden (they will be made visible by the next on frame
-			-- if needed), hide the 1/2/3 and make them not movable
-			for _, wndProc in pairs(self.tWndProcs) do
-				wndProc:FindChild("Number"):Show(false)
-				wndProc:Show(false)
-				wndProc:SetStyle("IgnoreMouse", true)
-				wndProc:SetStyle("Moveable", false)
-			end
+function ProcsHUD:UnlockFrames()
+	if self.bUnlockFrames then
+		-- Make all the proc windows visible, show the 1/2/3 and make them movable
+		for _, wndProc in pairs(self.tWndProcs) do
+			wndProc:FindChild("Icon"):SetSprite("")
+			wndProc:FindChild("Number"):Show(true)
+			wndProc:Show(true)
+			wndProc:SetStyle("IgnoreMouse", false)
+			wndProc:SetStyle("Moveable", true)
+		end
+	else
+		-- Make all procs windows hidden (they will be made visible by the next "on frame"
+		-- if needed), hide the 1/2/3 and make them not movable
+		for _, wndProc in pairs(self.tWndProcs) do
+			wndProc:FindChild("Number"):Show(false)
+			wndProc:Show(false)
+			wndProc:SetStyle("IgnoreMouse", true)
+			wndProc:SetStyle("Moveable", false)
 		end
 	end
 end
 
-function ProcsHUD:SettingsOnCooldownToggle( wndHandler, wndControl, eMouseButton )
+function ProcsHUD:SettingsOnCooldownToggle(wndHandler, wndControl, eMouseButton)
+	if self.wndSettings:FindChild("ButtonCooldownHideFrame"):IsChecked() then
+		self.userSettings.cooldownLogic = ProcsHUD:CodeEnumCooldownLogic:Hide
+	elseif self.wndMain:FindChild("ButtonCooldownOverlay"):IsChecked() then
+		self.userSettings.cooldownLogic = ProcsHUD:CodeEnumCooldownLogic:Overlay
+	end
+end
+
+function ProcsHUD:SettingsOnScaleChanged(wndHandler, wndControl, fNewValue, fOldValue)
+	-- TODO implement
 end
 
 
-function ProcsHUD:SettingsOnScaleChanged( wndHandler, wndControl, fNewValue, fOldValue )
+-----------------------------------------------------------------------------------------------
+-- Utility Instance
+-----------------------------------------------------------------------------------------------
+
+function ProcsHUD.deepcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[ProcsHUD.deepcopy(orig_key)] = ProcsHUD.deepcopy(orig_value)
+        end
+        setmetatable(copy, ProcsHUD.deepcopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
 end
+
 
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD Instance
