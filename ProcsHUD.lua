@@ -464,7 +464,7 @@ function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)
 
 end
 
-function ProcsHUD:SettingsOnFramesLockedToggle(wndHandler, wndControl, eMouseButton)
+function ProcsHUD:SettingsOnUnlockFramesToggle(wndHandler, wndControl, eMouseButton)
 	local areFramesLocked = true -- STOPSHIP Get the right value from the checkbox
 
 	if self.areFramesLocked ~= areFramesLocked then
@@ -490,6 +490,13 @@ function ProcsHUD:SettingsOnFramesLockedToggle(wndHandler, wndControl, eMouseBut
 			end
 		end
 	end
+end
+
+function ProcsHUD:SettingsOnCooldownToggle( wndHandler, wndControl, eMouseButton )
+end
+
+
+function ProcsHUD:SettingsOnScaleChanged( wndHandler, wndControl, fNewValue, fOldValue )
 end
 
 -----------------------------------------------------------------------------------------------
