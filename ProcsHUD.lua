@@ -5,16 +5,11 @@
 
 -- TODO:
 -- * Add cooldown logic => v2: show with cooldown overlay
--- * Add cooldown logic => v3: make it possible to switch between both
 
 -- * Show a counter on the proc window showing how long the proc is still
 -- active
 
--- * Options form: activate/deactivate the addon for specific spells.
--- Should show only the spells of your class
--- * Options form: cooldown logic (hidden / overlay)
--- * Options form: enable/disable the proc timer
--- * Slider for scaling ?
+-- * Add tooltips on the spells in the options
 
 require "Window"
 
@@ -97,10 +92,8 @@ ProcsHUD.ProcSpells = {
 	},
 	[GameLib.CodeEnumClass.Warrior] = {
 		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.Critical },
-		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect }
-		-- TODO readd once we have the 3rd window and the noshield detection
-		--[[,
-		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield }]]--
+		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect },
+		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield }
 	},
 	[GameLib.CodeEnumClass.Stalker] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.Critical },
@@ -238,7 +231,18 @@ function ProcsHUD:OnDocLoaded()
 	if self.xmlDoc ~= nil and self.xmlDoc:IsLoaded() then
 		-- Load the settings window
 	    self.wndSettings = Apollo.LoadForm(self.xmlDoc, "ProcsSettingsUI", nil, self)
-		if self.wndSettings == nil then
+		if not self.wndSettings then
+			Apollo.AddAddonErrorText(self, "Could not load the settings window for some reason.")
+			return
+		end
+
+		-- Get the Settings spell windows
+		self.tWndSettingsSpells = {
+			self.wndSettings:FindChild("WndSpell1"),
+			self.wndSettings:FindChild("WndSpell2"),
+			self.wndSettings:FindChild("WndSpell3")
+		}
+		if not self.tWndSettingsSpells[1] or not self.tWndSettingsSpells[2] or not self.tWndSettingsSpells[3] then
 			Apollo.AddAddonErrorText(self, "Could not load the settings window for some reason.")
 			return
 		end
@@ -347,13 +351,14 @@ function ProcsHUD:OnFrame()
 
 	local wndProcIndex = 1
 
-	-- Manage crits (we pass the wndProcIndex and we receive the new wndProcIndex if we display a window)
-	wndProcIndex = self:ProcessProcs(wndProcIndex, ProcsHUD.CodeEnumProcType.Critical, tSpells)
+	-- Manage crit procs (we pass the wndProcIndex and we receive the new wndProcIndex if we display a window)
+	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.Critical, tSpells)
 
-	-- Manage deflect hits
-	wndProcIndex = self:ProcessProcs(wndProcIndex, ProcsHUD.CodeEnumProcType.Deflect, tSpells)
+	-- Manage deflect hit procs
+	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.Deflect, tSpells)
 
-	-- TODO manage "no shield"
+	-- Manage no shield procs
+	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.NoShield, tSpells)
 
 	-- Hide the remaining proc windows. At this point wndProcIndex is the next window to use, so we
 	-- need to hide all the remaining windows including the wndProcIndex one.
@@ -395,13 +400,13 @@ end
 -- Procs display management
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:ProcessProcs(wndProcIndex, procType, tSpells)
+function ProcsHUD:ProcessProcs(unitPlayer, wndProcIndex, procType, tSpells)
 	if wndProcIndex and procType and tSpells then
 		for _, spell in pairs(tSpells) do
 			if spell[2] == procType then
 				-- Let's check if the user didn't deactivate the spell in the options
 				if self.userSettings.activeSpells[spell[1]] then
-					wndProcIndex = self:ProcessProcsForSpell(wndProcIndex, procType, spell[1])
+					wndProcIndex = self:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell[1])
 				end
 			end
 		end
@@ -410,7 +415,7 @@ function ProcsHUD:ProcessProcs(wndProcIndex, procType, tSpells)
 	return wndProcIndex
 end
 
-function ProcsHUD:ProcessProcsForSpell(wndProcIndex, procType, spellId)
+function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spellId)
 	local wndProc = self.tWndProcs[wndProcIndex]
 	if not wndProc then
 		-- We don't have a valid window to display the proc. This should normally never happen.
@@ -438,7 +443,7 @@ function ProcsHUD:ProcessProcsForSpell(wndProcIndex, procType, spellId)
 	elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
 		shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
 	else if procType == ProcsHUD.CodeEnumProcType.NoShield
-		-- TODO implement
+		shouldShowProc = ProcsHUD.NullToZero(unit:GetShieldCapacity()) == 0
 	end
 
 	-- Let's see if we need to show the proc
@@ -537,15 +542,59 @@ function ProcsHUD:FinishAddon() {
 ---------------------------------------------------------------------------------------------------
 
 function ProcsHUD:ShowSettingsUI()
-	self:SetupSettingsUI()
+	local unitPlayer = GameLib.GetPlayerUnit()
+	if not unitPlayer then
+		-- We don't have the player object yet.
+		return
+	end
+
+	-- Spells management settings
+	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
+	if not tSpells then
+		-- Not a class that we manage in this addon
+		Print("Esper doesn't have spells usable only after Procs. As a result, ProcsHUD is disabled for Esper characters.")
+		return
+	end
+
+	self:SetupSettingsUI(tSpells)
 
 	self.wndSettings:Show(true)
 	self.wndSettings:ToFront()
 end
 
-function ProcsHUD:SetupSettingsUI()
-	self:wndSettings:FindChild("ButtonUnlockFrames"):SetChecked(self.bUnlockFrames)
+function ProcsHUD:SetupSettingsUI(tSpells)
+	-- Unlock Frames setting
+	self.wndSettings:FindChild("ButtonUnlockFrames"):SetChecked(self.bUnlockFrames)
 
+	-- Cooldown management settings
+	if (self.userSettings.cooldownLogic == ProcsHUD:CodeEnumCooldownLogic.Hide) then
+		self.wndSettings:FindChild("ButtonCooldownHideFrame"):SetChecked(true)
+	elseif (self.userSettings.cooldownLogic == ProcsHUD:CodeEnumCooldownLogic.Overlay) then
+		self.wndSettings:FindChild("ButtonCooldownOverlay"):SetChecked(true)
+	end
+
+	-- Spells management settings
+	for i, spell in pairs(tSpells) do
+		local spellId = spell[1]
+
+		local wndSpell = self.tWndSettingsSpells[i]
+		wndSpell:Show(true)
+
+		wndSpell:FindChild("ButtonSpell"):SetChecked(self.userSettings.activeSpells[spellId])
+
+		local spellSprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
+		wndSpell:FindChild("SpellIcon"):SetSprite(spellSprite)
+		local spellName = ProcsHUD.CodeEnumProcSpellName[spellId]
+		wndSpell:FindChild("SpellName"):SetText(spellName)
+
+		-- TODO add a tooltip with the spell info like in the AbilityBuilder
+	end
+
+	-- Hide the remaining spell rows
+	for i=#tSpells+1, 3 do
+		local wndSpell = self.tWndSettingsSpells[i]
+		wndSpell:Show(false)
+	end
 end
 
 function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)
@@ -595,8 +644,37 @@ function ProcsHUD:SettingsOnCooldownToggle(wndHandler, wndControl, eMouseButton)
 	end
 end
 
-function ProcsHUD:SettingsOnScaleChanged(wndHandler, wndControl, fNewValue, fOldValue)
-	-- TODO implement
+function ProcsHUD:SettingsOnSpell1Toggle(wndHandler, wndControl, eMouseButton)
+	self:SettingsToggleSpell(1)
+end
+
+function ProcsHUD:SettingsOnSpell2Toggle(wndHandler, wndControl, eMouseButton)
+	self:SettingsToggleSpell(2)
+end
+
+function ProcsHUD:SettingsOnSpell3Toggle(wndHandler, wndControl, eMouseButton)
+	self:SettingsToggleSpell(3)
+end
+
+function ProcsHUD:SettingsToggleSpell(wndSpellIndex)
+	local unitPlayer = GameLib.GetPlayerUnit()
+	if not unitPlayer then
+		-- We don't have the player object yet.
+		return
+	end
+
+	-- Spells management settings
+	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
+	if not tSpells then
+		-- Not a class that we manage in this addon. This should never happen as we show the
+		-- settings UI only for the class we manage.
+		return
+	end
+
+	local isSpellActive = self.tWndSettingsSpells[wndSpellIndex]:FindChild("ButtonSpell"):IsChecked()
+
+	local spellId = tSpells[wndSpellIndex][1]
+	self.userSettings.activeSpells[spellId] = isSpellActive
 end
 
 
@@ -617,6 +695,13 @@ function ProcsHUD.deepcopy(orig)
         copy = orig
     end
     return copy
+end
+
+function ProcsHUD.NullToZero(d)
+	if d == nil then
+		return 0
+	end
+	return d
 end
 
 
