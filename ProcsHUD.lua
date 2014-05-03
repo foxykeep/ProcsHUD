@@ -4,11 +4,6 @@
 -----------------------------------------------------------------------------------------------
 
 -- TODO:
--- * Add cooldown logic => v2: show with cooldown overlay
-
--- * Show a counter on the proc window showing how long the proc is still
--- active
-
 -- * Add tooltips on the spells in the options
 
 require "Window"
@@ -161,6 +156,11 @@ local defaultSettings = {
 		-- Medic
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = true,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = true,
+	},
+	wndProcsPositions = {
+		[1] = {250, -37, 324, 37},
+		[2] = {330, -37, 404, 37},
+		[3] = {250, 43, 324, 117},
 	}
 }
 
@@ -179,8 +179,11 @@ function ProcsHUD:new(o)
 	self.tActiveAbilities = {}
 	self.tSpellCache = {}
 
-	self.bUnlockFrames = false;
+	self.bUnlockFrames = false
 	self.userSettings = DeepCopy(defaultSettings)
+
+	self.onRestoreCalled = false
+	self.onXmlDocLoadedCalled = false
 
     return o
 end
@@ -206,6 +209,7 @@ function ProcsHUD:OnSave(eType)
     local tSave = {}
     tSave.cooldownLogic = self.userSettings.cooldownLogic
 	tSave.activeSpells = DeepCopy(self.userSettings.activeSpells)
+	tSave.wndProcsPositions = DeepCopy(self.userSettings.wndProcsPositions)
 
 	return tSave
 end
@@ -216,11 +220,18 @@ function ProcsHUD:OnRestore(eType, tSave)
 	end
 
 	self.userSettings.cooldownLogic = tSave.cooldownLogic
-	if tSave.activeSpells ~= nil then
-		self.userSettings.activeSpells = DeepCopy(tSave.activeSpells)
+	self.userSettings.activeSpells = DeepCopy(tSave.activeSpells)
+	if tSave.wndProcsPositions then
+		self.userSettings.wndProcsPositions = DeepCopy(tSave.wndProcsPositions)
 	else
-		self.userSettings.activeSpells = DeepCopy(defaultSettings.activeSpells)
+		self.userSettings.wndProcsPositions = DeepCopy(defaultSettings.wndProcsPositions)
 	end
+
+	-- Data saved in future versions must be lazy restored (if present, grab from tSave else
+	-- grab from defaultSettings).
+
+	self.onRestoreCalled = true
+	self:PositionWndProcs()
 end
 
 
@@ -292,6 +303,26 @@ function ProcsHUD:OnDocLoaded()
 		Apollo.RegisterSlashCommand("procshud", "ShowSettingsUI", self)
 		Apollo.RegisterSlashCommand("ProcsHud", "ShowSettingsUI", self)
 		Apollo.RegisterSlashCommand("ProcsHUD", "ShowSettingsUI", self)
+
+		self.onXmlDocLoadedCalled = true
+		self:PositionWndProcs()
+	end
+end
+
+
+-----------------------------------------------------------------------------------------------
+-- Ability detection
+-----------------------------------------------------------------------------------------------
+
+function ProcsHUD:PositionWndProcs()
+	if not self.onRestoreCalled or not self.onXmlDocLoadedCalled then
+		return
+	end
+
+	-- Settings are restored and the windows are loaded. Let's position the views
+	for index, wndProc in pairs(self.tWndProcs) do
+		local anchors = self.userSettings.wndProcsPositions[index]
+		wndProc:SetAnchorOffsets(anchors[1], anchors[2], anchors[3], anchors[4])
 	end
 end
 
@@ -571,8 +602,14 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:FinishAddon()
-	if self.xmlDoc then
-		self.xmlDoc:Destroy()
+	if self.wndSettings then
+		self.wndSettings:Destroy()
+	end
+
+	if self.tWndProcs then
+		for _, wndProc in pairs(self.tWndProcs) do
+			wndProc:Destroy()
+		end
 	end
 
 	Apollo.RemoveEventHandler("AbilityBookChange", self)
@@ -662,28 +699,54 @@ function ProcsHUD:SettingsOnUnlockFramesToggle(wndHandler, wndControl, eMouseBut
 end
 
 function ProcsHUD:UnlockFrames()
+	local unitPlayer = GameLib.GetPlayerUnit()
+	if not unitPlayer then
+		-- We don't have the player object yet.
+		return
+	end
+
+	-- Spells management settings
+	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
+	if not tSpells then
+		-- Not a class that we manage in this addon. Impossible normally as we already
+		-- check for it before.
+		return
+	end
+
 	if self.bUnlockFrames then
 		-- Make all the proc windows visible, show the 1/2/3 and make them movable
-		for _, wndProc in pairs(self.tWndProcs) do
-			wndProc:FindChild("Icon"):SetSprite("")
-			wndProc:FindChild("Number"):Show(true)
-			wndProc:FindChild("Cooldown"):Show(false)
-			wndProc:Show(true)
-			wndProc:SetStyle("IgnoreMouse", false)
-			wndProc:SetStyle("Moveable", true)
+		for index, wndProc in pairs(self.tWndProcs) do
+			if index <= #tSpells then -- No reason to show a wndProc which we will not use
+				wndProc:FindChild("Icon"):SetSprite("")
+				wndProc:FindChild("Number"):Show(true)
+				wndProc:FindChild("Cooldown"):Show(false)
+				wndProc:Show(true)
+				wndProc:SetStyle("IgnoreMouse", false)
+				wndProc:SetStyle("Moveable", true)
+			end
 		end
 	else
 		-- Make all procs windows hidden (they will be made visible by the next "on frame"
 		-- if needed), hide the 1/2/3 and make them not movable
-		for _, wndProc in pairs(self.tWndProcs) do
+		for index, wndProc in pairs(self.tWndProcs) do
 			wndProc:FindChild("Number"):Show(false)
 			wndProc:FindChild("Cooldown"):Show(true)
 			wndProc:FindChild("Cooldown"):SetText("")
 			wndProc:Show(false)
 			wndProc:SetStyle("IgnoreMouse", true)
 			wndProc:SetStyle("Moveable", false)
+
+			-- We also save the new positions to the user settings
+			local left, top, right, bottom = wndProc:GetAnchorOffsets()
+			self.userSettings.wndProcsPositions[index] = { left, top, right, bottom }
 		end
+		self:PositionWndProcs()
 	end
+end
+
+function ProcsHUD:SettingsOnRestorePositions(wndHandler, wndControl, eMouseButton)
+	self.userSettings.wndProcsPositions = DeepCopy(defaultSettings.wndProcsPositions)
+	self:PositionWndProcs()
 end
 
 function ProcsHUD:SettingsOnCooldownToggle(wndHandler, wndControl, eMouseButton)
