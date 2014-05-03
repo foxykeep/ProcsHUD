@@ -105,7 +105,7 @@ ProcsHUD.ProcSpells = {
 	}
 }
 
-ProcsHUD.CodeEnumCooldownLogic {
+ProcsHUD.CodeEnumCooldownLogic = {
 	Hide = 1,
 	Overlay = 2
 }
@@ -121,8 +121,30 @@ local function GetAbilitiesList()
 	return abilitiesList
 end
 
+local function DeepCopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[DeepCopy(orig_key)] = DeepCopy(orig_value)
+        end
+        setmetatable(copy, DeepCopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+
+local function NullToZero(d)
+	if d == nil then
+		return 0
+	end
+	return d
+end
+
 local defaultSettings = {
-	cooldownLogic = ProcsHUD:CodeEnumCooldownLogic:Hide,
+	cooldownLogic = ProcsHUD.CodeEnumCooldownLogic.Hide,
 	activeSpells = {
 		-- Engineer
 		[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = true,
@@ -157,8 +179,8 @@ function ProcsHUD:new(o)
 	self.tActiveAbilities = {}
 	self.tSpellCache = {}
 
-	self.bUnlockFrames = true;
-	self.userSettings = self.deepcopy(defaultSettings)
+	self.bUnlockFrames = false;
+	self.userSettings = DeepCopy(defaultSettings)
 
     return o
 end
@@ -176,28 +198,28 @@ end
 -- ProcsHUD Save & Restore settings
 -----------------------------------------------------------------------------------------------
 
-function GotHUD:OnSave(eType)
+function ProcsHUD:OnSave(eType)
 	if eType ~= GameLib.CodeEnumAddonSaveLevel.Character then
-		return
+		return nil
 	end
 
     local tSave = {}
     tSave.cooldownLogic = self.userSettings.cooldownLogic
-	tSave.activeSpells = self.deepcopy(self.userSettings.activeSpells)
+	tSave.activeSpells = DeepCopy(self.userSettings.activeSpells)
 
 	return tSave
 end
 
-function GotHUD:OnRestore(eType, tSave)
+function ProcsHUD:OnRestore(eType, tSave)
 	if eType ~= GameLib.CodeEnumAddonSaveLevel.Character then
 		return
 	end
 
 	self.userSettings.cooldownLogic = tSave.cooldownLogic
 	if tSave.activeSpells ~= nil then
-		self.userSettings.activeSpells = self.deepcopy(tSave.activeSpells)
+		self.userSettings.activeSpells = DeepCopy(tSave.activeSpells)
 	else
-		self.userSettings.activeSpells = self.deepcopy(defaultSettings.activeSpells)
+		self.userSettings.activeSpells = DeepCopy(defaultSettings.activeSpells)
 	end
 end
 
@@ -227,7 +249,6 @@ end
 -- GotHUD OnDocLoaded
 -----------------------------------------------------------------------------------------------
 function ProcsHUD:OnDocLoaded()
-
 	if self.xmlDoc ~= nil and self.xmlDoc:IsLoaded() then
 		-- Load the settings window
 	    self.wndSettings = Apollo.LoadForm(self.xmlDoc, "ProcsSettingsUI", nil, self)
@@ -235,6 +256,7 @@ function ProcsHUD:OnDocLoaded()
 			Apollo.AddAddonErrorText(self, "Could not load the settings window for some reason.")
 			return
 		end
+		self.wndSettings:Show(false)
 
 		-- Get the Settings spell windows
 		self.tWndSettingsSpells = {
@@ -257,6 +279,11 @@ function ProcsHUD:OnDocLoaded()
 			Apollo.AddAddonErrorText(self, "Could not load the proc frame windows for some reason.")
 			return
 		end
+		for _, wndProc in pairs(self.tWndProcs) do
+			wndProc:Show(false)
+			wndProc:FindChild("Number"):Show(false)
+			wndProc:FindChild("Cooldown"):Show(false)
+		end
 
 		-- Load the spell sprites
 		Apollo.LoadSprites("Icons.xml", "ProcsHUDSprites")
@@ -274,6 +301,12 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:OnAbilityBookChange()
+	-- ActionSetLib.GetCurrentActionSet() returns the old LAS when called in
+	-- OnAbilityBookChange(). So we start a delay timer.
+	Apollo.CreateTimer("AbilityBookChangerTimer", 1, false)
+end
+
+function ProcsHUD:OnAbilityBookChangerTimer()
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
 		return
@@ -291,13 +324,8 @@ function ProcsHUD:OnAbilityBookChange()
 		self.tSpellCache[k] = nil
 	end
 
-	-- ActionSetLib.GetCurrentActionSet() returns the old LAS when called in
-	-- OnAbilityBookChange(). So we start a delay timer.
-	Apollo.CreateTimer("AbilityBookChangerTimer", 0.5, false)
-end
-
-function ProcsHUD:OnAbilityBookChangerTimer()
     local currentActionSet = ActionSetLib.GetCurrentActionSet()
+
 	for _, spell in pairs(tSpells) do
 		self:CheckAbility(currentActionSet, spell[1])
 	end
@@ -316,8 +344,6 @@ function ProcsHUD:CheckAbility(currentActionSet, spellId)
             return
         end
     end
-
-    Print("[ProcsHUD] CheckAbility " .. spellId .. " " .. self.tActiveAbilities[spellId])
 end
 
 
@@ -326,7 +352,7 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:OnFrame()
-	if not self.bUnlockFrames then
+	if self.bUnlockFrames then
 		-- We are in "Move frames" mode. We don't draw the normal procs in this case
 		return
 	end
@@ -401,7 +427,7 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:ProcessProcs(unitPlayer, wndProcIndex, procType, tSpells)
-	if wndProcIndex and procType and tSpells then
+	if wndProcIndex > 0 and procType and tSpells then
 		for _, spell in pairs(tSpells) do
 			if spell[2] == procType then
 				-- Let's check if the user didn't deactivate the spell in the options
@@ -431,10 +457,11 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 
 	-- Let's check if the spell is not in cooldown
 	local cooldownLeft, cooldownTotalDuration, chargesLeft = self:GetSpellCooldown(spellId)
-	-- TODO improve that to show the cooldown
-	if cooldownLeft > 0 and chargesLeft == 0 then
-		-- The spell is in cooldown and we don't have any charge left (for a spell with charges). Nothing to do here.
-		return wndProcIndex
+	if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
+		if cooldownLeft > 0 and chargesLeft == 0 then
+			-- The spell is in cooldown and we don't have any charge left (for a spell with charges). Nothing to do here.
+			return wndProcIndex
+		end
 	end
 
 	local shouldShowProc = false
@@ -442,8 +469,8 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 		shouldShowProc = os.difftime(os.time(), self.lastCriticalTime) < CRITICAL_TIME
 	elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
 		shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
-	else if procType == ProcsHUD.CodeEnumProcType.NoShield
-		shouldShowProc = ProcsHUD.NullToZero(unit:GetShieldCapacity()) == 0
+	elseif procType == ProcsHUD.CodeEnumProcType.NoShield then -- Let's check if we are at 0 shield
+		shouldShowProc = NullToZero(unitPlayer:GetShieldCapacity()) == 0
 	end
 
 	-- Let's see if we need to show the proc
@@ -451,6 +478,26 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 		-- Update the sprite in the proc view
 		local sprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
 		wndProc:FindChild("Icon"):SetSprite(sprite)
+
+		local wndProcCooldown = wndProc:FindChild("Cooldown")
+		if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Overlay then
+			wndProcCooldown:Show(true)
+			if cooldownLeft > 0 then
+				local cooldownText = ""
+				if cooldownLeft > 3600 then
+					cooldownText = math.floor(cooldownLeft / 3600) .. "h"
+				elseif cooldownLeft > 60 then
+					cooldownText = math.floor(cooldownLeft / 60) .. "m"
+				else
+					cooldownText = math.floor(cooldownLeft) .. "s"
+				end
+				wndProcCooldown:SetText(cooldownText)
+			else
+				wndProcCooldown:SetText("")
+			end
+		else
+			wndProcCooldown:Show(false)
+		end
 
 		-- Show the proc view
 		wndProc:Show(true)
@@ -471,7 +518,7 @@ end
 function ProcsHUD:GetSpellCooldown(spellId)
 	local splObject = self:GetSpellById(spellId)
 	if not splObject then
-		Print("GetSpellCooldown called with a non-existing spell " .. spellId)
+		-- GetSpellCooldown called with a non-existing spell
 		return 0, 0, 0
 	end
 
@@ -495,7 +542,7 @@ end
 
 function ProcsHUD:GetSpellById(spellId)
 	-- Let's check the cache first
-	splObject = tSpellCache[spellId]
+	splObject = self.tSpellCache[spellId]
 	if splObject then
 		return splObject
 	end
@@ -510,7 +557,7 @@ function ProcsHUD:GetSpellById(spellId)
 			if v.bIsActive and v.nCurrentTier and v.tTiers then
 				local tier = v.tTiers[v.nCurrentTier]
 				if tier then
-					tSpellCache[spellId] = tier.splObject
+					self.tSpellCache[spellId] = tier.splObject
 					return tier.splObject
 				end
 			end
@@ -523,7 +570,7 @@ end
 -- Addon cleanup
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:FinishAddon() {
+function ProcsHUD:FinishAddon()
 	if self.xmlDoc then
 		self.xmlDoc:Destroy()
 	end
@@ -534,7 +581,7 @@ function ProcsHUD:FinishAddon() {
 	Apollo.RemoveEventHandler("VarChange_FrameCount", self)
 
 	Apollo.StopTimer("AbilityBookChangerTimer")
-}
+end
 
 
 ---------------------------------------------------------------------------------------------------
@@ -564,13 +611,13 @@ end
 
 function ProcsHUD:SetupSettingsUI(tSpells)
 	-- Unlock Frames setting
-	self.wndSettings:FindChild("ButtonUnlockFrames"):SetChecked(self.bUnlockFrames)
+	self.wndSettings:FindChild("ButtonUnlockFrames"):SetCheck(self.bUnlockFrames)
 
 	-- Cooldown management settings
-	if (self.userSettings.cooldownLogic == ProcsHUD:CodeEnumCooldownLogic.Hide) then
-		self.wndSettings:FindChild("ButtonCooldownHideFrame"):SetChecked(true)
-	elseif (self.userSettings.cooldownLogic == ProcsHUD:CodeEnumCooldownLogic.Overlay) then
-		self.wndSettings:FindChild("ButtonCooldownOverlay"):SetChecked(true)
+	if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
+		self.wndSettings:FindChild("ButtonCooldownHideFrame"):SetCheck(true)
+	elseif self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Overlay then
+		self.wndSettings:FindChild("ButtonCooldownOverlay"):SetCheck(true)
 	end
 
 	-- Spells management settings
@@ -580,7 +627,7 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 		local wndSpell = self.tWndSettingsSpells[i]
 		wndSpell:Show(true)
 
-		wndSpell:FindChild("ButtonSpell"):SetChecked(self.userSettings.activeSpells[spellId])
+		wndSpell:FindChild("ButtonSpell"):SetCheck(self.userSettings.activeSpells[spellId])
 
 		local spellSprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
 		wndSpell:FindChild("SpellIcon"):SetSprite(spellSprite)
@@ -620,6 +667,7 @@ function ProcsHUD:UnlockFrames()
 		for _, wndProc in pairs(self.tWndProcs) do
 			wndProc:FindChild("Icon"):SetSprite("")
 			wndProc:FindChild("Number"):Show(true)
+			wndProc:FindChild("Cooldown"):Show(false)
 			wndProc:Show(true)
 			wndProc:SetStyle("IgnoreMouse", false)
 			wndProc:SetStyle("Moveable", true)
@@ -629,6 +677,8 @@ function ProcsHUD:UnlockFrames()
 		-- if needed), hide the 1/2/3 and make them not movable
 		for _, wndProc in pairs(self.tWndProcs) do
 			wndProc:FindChild("Number"):Show(false)
+			wndProc:FindChild("Cooldown"):Show(true)
+			wndProc:FindChild("Cooldown"):SetText("")
 			wndProc:Show(false)
 			wndProc:SetStyle("IgnoreMouse", true)
 			wndProc:SetStyle("Moveable", false)
@@ -638,9 +688,9 @@ end
 
 function ProcsHUD:SettingsOnCooldownToggle(wndHandler, wndControl, eMouseButton)
 	if self.wndSettings:FindChild("ButtonCooldownHideFrame"):IsChecked() then
-		self.userSettings.cooldownLogic = ProcsHUD:CodeEnumCooldownLogic:Hide
-	elseif self.wndMain:FindChild("ButtonCooldownOverlay"):IsChecked() then
-		self.userSettings.cooldownLogic = ProcsHUD:CodeEnumCooldownLogic:Overlay
+		self.userSettings.cooldownLogic = ProcsHUD.CodeEnumCooldownLogic.Hide
+	elseif self.wndSettings:FindChild("ButtonCooldownOverlay"):IsChecked() then
+		self.userSettings.cooldownLogic = ProcsHUD.CodeEnumCooldownLogic.Overlay
 	end
 end
 
@@ -675,33 +725,6 @@ function ProcsHUD:SettingsToggleSpell(wndSpellIndex)
 
 	local spellId = tSpells[wndSpellIndex][1]
 	self.userSettings.activeSpells[spellId] = isSpellActive
-end
-
-
------------------------------------------------------------------------------------------------
--- Utility Instance
------------------------------------------------------------------------------------------------
-
-function ProcsHUD.deepcopy(orig)
-    local orig_type = type(orig)
-    local copy
-    if orig_type == 'table' then
-        copy = {}
-        for orig_key, orig_value in next, orig, nil do
-            copy[ProcsHUD.deepcopy(orig_key)] = ProcsHUD.deepcopy(orig_value)
-        end
-        setmetatable(copy, ProcsHUD.deepcopy(getmetatable(orig)))
-    else -- number, string, boolean, etc
-        copy = orig
-    end
-    return copy
-end
-
-function ProcsHUD.NullToZero(d)
-	if d == nil then
-		return 0
-	end
-	return d
 end
 
 
