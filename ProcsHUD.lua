@@ -6,12 +6,11 @@
 -- TODO:
 -- * Add tooltips on the spells in the options
 
--- * Fix the issue with the SpellSurge messing the cooldowns
 -- * Have an option to have a sound playing (different per proc ?)
 -- * Crits from Probe are triggering the icon but it's not a valid proc. need to see what I can do about ...
--- Test reset cooldown of warrior via innate
 
--- Need stalker level 15
+-- Checkout replacing os.time() with Apollo.GetTickCount()
+
 -- Need ss level 15
 -- Need Medic lvl 11
 
