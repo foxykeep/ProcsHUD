@@ -6,7 +6,6 @@
 -- TODO:
 -- * Add tooltips on the spells in the options
 
--- * Add the support for CriticalHeal (see BetterCombatText code) -- Use rover to check the values
 -- * Fix the issue with the SpellSurge messing the cooldowns
 -- * Have an option to have a sound playing (different per proc ?)
 -- * Crits from Probe are triggering the icon but it's not a valid proc. need to see what I can do about ...
@@ -184,7 +183,8 @@ function ProcsHUD:new(o)
     setmetatable(o, self)
     self.__index = self
 
-	self.lastCriticalTime = 0
+	self.lastCriticalDmgTime = 0
+	self.lastCriticalHealTime = 0
 	self.lastDeflectTime = 0
 
 	self.tActiveAbilities = {}
@@ -256,9 +256,10 @@ function ProcsHUD:OnLoad()
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
 
 	Apollo.RegisterEventHandler("AbilityBookChange", "OnAbilityBookChange", self)
-	Apollo.RegisterEventHandler("CombatLogDamage", "OnDamageDealt", self)
+	Apollo.RegisterEventHandler("DamageOrHealingDone", "OnDamageOrHealing", self)
 	Apollo.RegisterEventHandler("AttackMissed", "OnMiss", self)
 	Apollo.RegisterEventHandler("VarChange_FrameCount", "OnFrame", self)
+
 
 	Apollo.RegisterTimerHandler("AbilityBookChangerTimer", "OnAbilityBookChangerTimer", self)
 
@@ -445,14 +446,19 @@ end
 -- Critical detection
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:OnDamageDealt(tData)
-	if tData.unitCaster ~= nil and tData.unitCaster == GameLib.GetPlayerUnit() then
-		if tData.eCombatResult == GameLib.CodeEnumCombatResult.Critical then
-			self.lastCriticalTime = os.time()
+function ProcsHUD:OnDamageOrHealing( unitCaster, unitTarget, eDamageType, nDamage, nShieldDamaged, nAbsorptionAmount, bCritical )
+	if unitCaster ~= nil and unitCaster == GameLib.GetPlayerUnit() then
+		if eDamageType == GameLib.CodeEnumDamageType.Heal or eDamageType == GameLib.CodeEnumDamageType.HealShields then
+			if bCritical then
+				self.lastCriticalHealTime = os.time()
+			end
+		else
+			if bCritical then
+				self.lastCriticalDmgTime = os.time()
+			end
 		end
 	end
 end
-
 
 -----------------------------------------------------------------------------------------------
 -- Deflect detection
@@ -510,10 +516,12 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	end
 
 	local shouldShowProc = false
-	if procType == ProcsHUD.CodeEnumProcType.CriticalDmg or procType == ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal then -- Let's check if we scored a critical
-		shouldShowProc = os.difftime(os.time(), self.lastCriticalTime) < CRITICAL_TIME
+	if procType == ProcsHUD.CodeEnumProcType.CriticalDmg then -- Let's check if we scored a critical
+		shouldShowProc = os.difftime(os.time(), self.lastCriticalDmgTime) < CRITICAL_TIME
 	elseif procType == ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal then -- Let's check if we did a critical heal
-		-- TODO implement
+		local lastCritDmgDelta = os.difftime(os.time(), self.lastCriticalDmgTime)
+		local lastCritHealDelta = os.difftime(os.time(), self.lastCriticalHealTime)
+		shouldShowProc = lastCritDmgDelta < CRITICAL_TIME or lastCritHealDelta < CRITICAL_TIME
 	elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
 		shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
 	elseif procType == ProcsHUD.CodeEnumProcType.NoShield then -- Let's check if we are at 0 shield
