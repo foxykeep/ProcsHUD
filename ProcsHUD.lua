@@ -6,6 +6,16 @@
 -- TODO:
 -- * Add tooltips on the spells in the options
 
+-- * Add the support for CriticalHeal (see BetterCombatText code) -- Use rover to check the values
+-- * Fix the issue with the SpellSurge messing the cooldowns
+-- * Have an option to have a sound playing (different per proc ?)
+-- * Crits from Probe are triggering the icon but it's not a valid proc. need to see what I can do about ...
+-- Test reset cooldown of warrior via innate
+
+-- Need stalker level 15
+-- Need ss level 15
+-- Need Medic lvl 11
+
 require "Window"
 
 
@@ -18,9 +28,10 @@ local ProcsHUD = {}
 -- Constants
 -----------------------------------------------------------------------------------------------
 ProcsHUD.CodeEnumProcType = {
-	Critical = 1,
-	Deflect = 2,
-	NoShield = 3
+	CriticalDmg = 1,
+	CriticalDmgOrHeal = 2,
+	Deflect = 3,
+	NoShield = 4
 }
 
 ProcsHUD.CodeEnumProcSpellId = {
@@ -79,24 +90,24 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 
 ProcsHUD.ProcSpells = {
 	[GameLib.CodeEnumClass.Engineer] = {
-		{ ProcsHUD.CodeEnumProcSpellId.QuickBurst, ProcsHUD.CodeEnumProcType.Critical },
+		{ ProcsHUD.CodeEnumProcSpellId.QuickBurst, ProcsHUD.CodeEnumProcType.CriticalDmg },
 		{ ProcsHUD.CodeEnumProcSpellId.Feedback, ProcsHUD.CodeEnumProcType.Deflect }
 	},
 	[GameLib.CodeEnumClass.Spellslinger] = {
-		{ ProcsHUD.CodeEnumProcSpellId.FlameBurst, ProcsHUD.CodeEnumProcType.Critical }
+		{ ProcsHUD.CodeEnumProcSpellId.FlameBurst, ProcsHUD.CodeEnumProcType.CriticalDmg }
 	},
 	[GameLib.CodeEnumClass.Warrior] = {
-		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.Critical },
+		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.CriticalDmg },
 		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect },
 		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield }
 	},
 	[GameLib.CodeEnumClass.Stalker] = {
-		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.Critical },
+		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.CriticalDmg },
 		{ ProcsHUD.CodeEnumProcSpellId.Decimate, ProcsHUD.CodeEnumProcType.Deflect }
 	},
 	[GameLib.CodeEnumClass.Medic] = {
-		{ ProcsHUD.CodeEnumProcSpellId.Atomize, ProcsHUD.CodeEnumProcType.Critical },
-		{ ProcsHUD.CodeEnumProcSpellId.DualShock, ProcsHUD.CodeEnumProcType.Critical }
+		{ ProcsHUD.CodeEnumProcSpellId.Atomize, ProcsHUD.CodeEnumProcType.CriticalDmg },
+		{ ProcsHUD.CodeEnumProcSpellId.DualShock, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal }
 	}
 }
 
@@ -408,8 +419,11 @@ function ProcsHUD:OnFrame()
 
 	local wndProcIndex = 1
 
-	-- Manage crit procs (we pass the wndProcIndex and we receive the new wndProcIndex if we display a window)
-	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.Critical, tSpells)
+	-- Manage damage crit procs (we pass the wndProcIndex and we receive the new wndProcIndex if we display a window)
+	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.CriticalDmg, tSpells)
+
+	-- Manage damage or heal crit procs
+	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal, tSpells)
 
 	-- Manage deflect hit procs
 	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.Deflect, tSpells)
@@ -496,8 +510,10 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	end
 
 	local shouldShowProc = false
-	if procType == ProcsHUD.CodeEnumProcType.Critical then -- Let's check if we scored a critical
+	if procType == ProcsHUD.CodeEnumProcType.CriticalDmg or procType == ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal then -- Let's check if we scored a critical
 		shouldShowProc = os.difftime(os.time(), self.lastCriticalTime) < CRITICAL_TIME
+	elseif procType == ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal then -- Let's check if we did a critical heal
+		-- TODO implement
 	elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
 		shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
 	elseif procType == ProcsHUD.CodeEnumProcType.NoShield then -- Let's check if we are at 0 shield
