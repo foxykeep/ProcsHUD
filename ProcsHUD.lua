@@ -3,18 +3,6 @@
 -- Copyright (c) Foxykeep. All rights reserved
 -----------------------------------------------------------------------------------------------
 
--- TODO:
--- * Add tooltips on the spells in the options
-
--- * Fix the issue with the SpellSurge messing the cooldowns
--- * Have an option to have a sound playing (different per proc ?)
--- * Crits from Probe are triggering the icon but it's not a valid proc. need to see what I can do about ...
--- Test reset cooldown of warrior via innate
-
--- Need stalker level 15
--- Need ss level 15
--- Need Medic lvl 11
-
 require "Window"
 
 
@@ -115,6 +103,10 @@ ProcsHUD.CodeEnumCooldownLogic = {
 	Overlay = 2
 }
 
+ProcsHUD.CodeEnumSounds = {
+	-1, 126, 127, 128, 141, 145, 196, 197, 198, 203, 207, 208, 212, 216, 220, 222, 223
+}
+
 local CRITICAL_TIME = 5
 local DEFLECT_TIME = 4
 
@@ -167,6 +159,23 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = true,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = true,
 	},
+	spellSounds = {
+		-- Engineer
+		[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Feedback] = -1,
+		-- Spellslinger
+		[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = -1,
+		-- Warrior
+		[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = -1,
+		-- Stalker
+		[ProcsHUD.CodeEnumProcSpellId.Punish] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Decimate] = -1,
+		-- Medic
+		[ProcsHUD.CodeEnumProcSpellId.Atomize] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.DualShock] = -1,
+	},
 	wndProcsPositions = {
 		[1] = {250, -37, 324, 37},
 		[2] = {330, -37, 404, 37},
@@ -186,6 +195,8 @@ function ProcsHUD:new(o)
 	self.lastCriticalDmgTime = 0
 	self.lastCriticalHealTime = 0
 	self.lastDeflectTime = 0
+
+	self.lastCooldownLeft = 0
 
 	self.tActiveAbilities = {}
 	self.tSpellCache = {}
@@ -220,6 +231,7 @@ function ProcsHUD:OnSave(eType)
     local tSave = {}
     tSave.cooldownLogic = self.userSettings.cooldownLogic
 	tSave.activeSpells = DeepCopy(self.userSettings.activeSpells)
+	tSave.spellSounds = DeepCopy(self.userSettings.spellSounds)
 	tSave.wndProcsPositions = DeepCopy(self.userSettings.wndProcsPositions)
 
 	return tSave
@@ -232,6 +244,11 @@ function ProcsHUD:OnRestore(eType, tSave)
 
 	self.userSettings.cooldownLogic = tSave.cooldownLogic
 	self.userSettings.activeSpells = DeepCopy(tSave.activeSpells)
+	if tSave.spellSounds then
+		self.userSettings.spellSounds = DeepCopy(tSave.spellSounds)
+	else
+		self.userSettings.spellSounds = DeepCopy(defaultSettings.spellSounds)
+	end
 	if tSave.wndProcsPositions then
 		self.userSettings.wndProcsPositions = DeepCopy(tSave.wndProcsPositions)
 	else
@@ -554,6 +571,23 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 			wndProcCooldown:Show(false)
 		end
 
+		-- Play the sound if we should and we have a valid one
+		local spellSound = self.userSettings.spellSounds[spellId]
+		if spellSound ~= -1 then
+			if cooldownLeft == 0 then
+				if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
+					if not wndProc:IsVisible() then
+						Sound.Play(spellSound)
+					end
+				elseif self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Overlay then
+					if self.lastCooldownLeft > 0 then
+						Sound.Play(spellSound)
+					end
+				end
+			end
+		end
+		self.lastCooldownLeft = cooldownLeft
+
 		-- Show the proc view
 		wndProc:Show(true)
 
@@ -684,18 +718,42 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 	-- Spells management settings
 	for i, spell in pairs(tSpells) do
 		local spellId = spell[1]
+		local spellObject = self:GetSpellById(spellId)
 
 		local wndSpell = self.tWndSettingsSpells[i]
 		wndSpell:Show(true)
 
+		-- Is active
 		wndSpell:FindChild("ButtonSpell"):SetCheck(self.userSettings.activeSpells[spellId])
 
+		-- Spell icon + tooltip
 		local spellSprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
-		wndSpell:FindChild("SpellIcon"):SetSprite(spellSprite)
+		local wndSpellIcon = wndSpell:FindChild("SpellIcon")
+		wndSpellIcon:SetSprite(spellSprite)
+		if Tooltip and Tooltip.GetSpellTooltipForm then
+			wndSpellIcon:SetTooltipDoc(nil)
+			Tooltip.GetSpellTooltipForm(self, wndSpellIcon, spellObject)
+		end
+
+		-- Spell name
 		local spellName = ProcsHUD.CodeEnumProcSpellName[spellId]
 		wndSpell:FindChild("SpellName"):SetText(spellName)
 
-		-- TODO add a tooltip with the spell info like in the AbilityBuilder
+		-- Spell sound
+		local spellSoundComboBox = wndSpell:FindChild("SpellSound")
+		spellSoundComboBox:DeleteAll()
+		for _, resource in pairs(ProcsHUD.CodeEnumSounds) do
+			if resource ~= -1 then
+				spellSoundComboBox:AddItem(resource)
+			else
+				spellSoundComboBox:AddItem("None")
+			end
+		end
+		local selectedSound = self.userSettings.spellSounds[spellId]
+		if selectedSound == -1 then
+			selectedSound = "None"
+		end
+		spellSoundComboBox:SelectItemByText(selectedSound)
 	end
 
 	-- Hide the remaining spell rows
@@ -814,6 +872,79 @@ function ProcsHUD:SettingsToggleSpell(wndSpellIndex)
 	self.userSettings.activeSpells[spellId] = isSpellActive
 end
 
+function ProcsHUD:SettingsOnSpell1SoundChanged(wndHandler, wndControl)
+	self:SettingsChangeSoundSpell(1)
+end
+
+function ProcsHUD:SettingsOnSpell2SoundChanged(wndHandler, wndControl)
+	self:SettingsChangeSoundSpell(2)
+end
+
+function ProcsHUD:SettingsOnSpell3SoundChanged(wndHandler, wndControl)
+	self:SettingsChangeSoundSpell(3)
+end
+
+function ProcsHUD:SettingsChangeSoundSpell(wndSpellIndex)
+	local unitPlayer = GameLib.GetPlayerUnit()
+	if not unitPlayer then
+		-- We don't have the player object yet.
+		return
+	end
+
+	-- Spells management settings
+	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
+	if not tSpells then
+		-- Not a class that we manage in this addon. This should never happen as we show the
+		-- settings UI only for the class we manage.
+		return
+	end
+
+	local spellSoundComboBox = self.tWndSettingsSpells[wndSpellIndex]:FindChild("SpellSound")
+	local selectedSound = spellSoundComboBox:GetSelectedText()
+	if selectedSound == "None" then
+		selectedSound = -1
+	end
+
+	local spellId = tSpells[wndSpellIndex][1]
+	self.userSettings.spellSounds[spellId] = selectedSound
+end
+
+function ProcsHUD:SettingsOnSpell1SoundPlay(wndHandler, wndControl, eMouseButton)
+	self:SettingsPlaySpellSound(1)
+end
+
+function ProcsHUD:SettingsOnSpell2SoundPlay(wndHandler, wndControl, eMouseButton)
+	self:SettingsPlaySpellSound(2)
+end
+
+function ProcsHUD:SettingsOnSpell3SoundPlay(wndHandler, wndControl, eMouseButton)
+	self:SettingsPlaySpellSound(3)
+end
+
+function ProcsHUD:SettingsPlaySpellSound(wndSpellIndex)
+	Event_FireGenericEvent("SendVarToRover", "SettingsPlaySpellSound", wndSpellIndex)
+	local unitPlayer = GameLib.GetPlayerUnit()
+	if not unitPlayer then
+		-- We don't have the player object yet.
+		return
+	end
+
+	-- Spells management settings
+	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
+	if not tSpells then
+		-- Not a class that we manage in this addon. This should never happen as we show the
+		-- settings UI only for the class we manage.
+		return
+	end
+
+	local spellId = tSpells[wndSpellIndex][1]
+	local spellSound = self.userSettings.spellSounds[spellId]
+	Event_FireGenericEvent("SendVarToRover", "play_spellId", spellId)
+	Event_FireGenericEvent("SendVarToRover", "play_spellSound", spellSound)
+	if spellSound ~= -1 then
+		Sound.Play(spellSound)
+	end
+end
 
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD Instance
