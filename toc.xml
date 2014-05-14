@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Addon Author="Foxykeep" APIVersion="8" Name="ProcsHUD" Description="Addons showing icons near your character when you trigger a proc.\n\nFor example if you are an Engineer with the QuickBurst ability, you'll see an icon when you make a critical hit." Version="1.0">
+<Addon Author="Foxykeep" APIVersion="8" Name="ProcsHUD" Description="Addons showing icons near your character when you trigger a proc.\n\nFor example if you are an Engineer with the QuickBurst ability, you'll see an icon when you make a critical hit." Version="1.1">
     <Script Name="ProcsHUD.lua"/>
     <Form Name="ProcsHUD.xml"/>
 </Addon>
