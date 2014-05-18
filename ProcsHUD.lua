@@ -215,7 +215,10 @@ function ProcsHUD:InitUserSettings()
 end
 
 function ProcsHUD:Init()
-    Apollo.RegisterAddon(self)
+	local bHasConfigurateFunction = true
+	local strConfigureButtonText = "ProcsHUD"
+	local tDependencies = {}
+    Apollo.RegisterAddon(self, bHasConfigurateFunction, strConfigureButtonText, tDependencies)
 end
 
 
@@ -682,6 +685,10 @@ end
 ---------------------------------------------------------------------------------------------------
 -- ProcsSettingsUI Functions
 ---------------------------------------------------------------------------------------------------
+
+function ProcsHUD:OnConfigure()
+	self:ShowSettingsUI()
+end
 
 function ProcsHUD:ShowSettingsUI()
 	local unitPlayer = GameLib.GetPlayerUnit()
