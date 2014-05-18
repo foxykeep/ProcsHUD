@@ -75,24 +75,6 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "icon_DualShock"
 }
 
-ProcsHUD.CodeEnumProcSpellBuff = {
-	-- Engineer
-	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = "Dealt Critical Damage",
-	[ProcsHUD.CodeEnumProcSpellId.Feedback] = "Feedback",
-	-- Spellslinger
-	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = "Dealt Critical Damage",
-	-- Warrior
-	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
-	-- Stalker
-	[ProcsHUD.CodeEnumProcSpellId.Punish] = "Punish",
-	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
-	-- Medic
-	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "Clear!",
-	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "Clear!"
-}
-
 ProcsHUD.ProcSpells = {
 	[GameLib.CodeEnumClass.Engineer] = {
 		{ ProcsHUD.CodeEnumProcSpellId.QuickBurst, ProcsHUD.CodeEnumProcType.CriticalDmg },
@@ -481,7 +463,7 @@ end
 -- Critical detection
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:OnDamageOrHealing(unitCaster, unitTarget, eDamageType, nDamage, nShieldDamaged, nAbsorptionAmount, bCritical)
+function ProcsHUD:OnDamageOrHealing( unitCaster, unitTarget, eDamageType, nDamage, nShieldDamaged, nAbsorptionAmount, bCritical )
 	if unitCaster ~= nil and unitCaster == GameLib.GetPlayerUnit() then
 		if eDamageType == GameLib.CodeEnumDamageType.Heal or eDamageType == GameLib.CodeEnumDamageType.HealShields then
 			if bCritical then
@@ -551,27 +533,16 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	end
 
 	local shouldShowProc = false
-	local buffName = ProcsHUD.CodeEnumProcSpellBuff[spellId]
-	if buffName ~= nil then
-		local tBuffs = unitPlayer:GetBuffs().arBeneficial
-		for _, buff in pairs(buffs) do
-			if buff.splEffect:GetName == buffName then
-				shouldShowProc = true;
-				break
-			end
-		end
-	else
-		if procType == ProcsHUD.CodeEnumProcType.CriticalDmg then -- Let's check if we scored a critical
-			shouldShowProc = os.difftime(os.time(), self.lastCriticalDmgTime) < CRITICAL_TIME
-		elseif procType == ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal then -- Let's check if we did a critical heal
-			local lastCritDmgDelta = os.difftime(os.time(), self.lastCriticalDmgTime)
-			local lastCritHealDelta = os.difftime(os.time(), self.lastCriticalHealTime)
-			shouldShowProc = lastCritDmgDelta < CRITICAL_TIME or lastCritHealDelta < CRITICAL_TIME
-		elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
-			shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
-		elseif procType == ProcsHUD.CodeEnumProcType.NoShield then -- Let's check if we are at 0 shield
-			shouldShowProc = NullToZero(unitPlayer:GetShieldCapacity()) == 0
-		end
+	if procType == ProcsHUD.CodeEnumProcType.CriticalDmg then -- Let's check if we scored a critical
+		shouldShowProc = os.difftime(os.time(), self.lastCriticalDmgTime) < CRITICAL_TIME
+	elseif procType == ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal then -- Let's check if we did a critical heal
+		local lastCritDmgDelta = os.difftime(os.time(), self.lastCriticalDmgTime)
+		local lastCritHealDelta = os.difftime(os.time(), self.lastCriticalHealTime)
+		shouldShowProc = lastCritDmgDelta < CRITICAL_TIME or lastCritHealDelta < CRITICAL_TIME
+	elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
+		shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
+	elseif procType == ProcsHUD.CodeEnumProcType.NoShield then -- Let's check if we are at 0 shield
+		shouldShowProc = NullToZero(unitPlayer:GetShieldCapacity()) == 0
 	end
 
 	-- Let's see if we need to show the proc
