@@ -557,8 +557,8 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	local buffName = ProcsHUD.CodeEnumProcSpellBuff[spellId]
 	if buffName ~= nil then
 		local tBuffs = unitPlayer:GetBuffs().arBeneficial
-		for _, buff in pairs(buffs) do
-			if buff.splEffect:GetName == buffName then
+		for _, buff in pairs(tBuffs) do
+			if buff.splEffect:GetName() == buffName then
 				shouldShowProc = true;
 				break
 			end
