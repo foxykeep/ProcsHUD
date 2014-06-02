@@ -225,6 +225,8 @@ function ProcsHUD:new(o)
 	self.onRestoreCalled = false
 	self.onXmlDocLoadedCalled = false
 
+	self.isEnglishLocale = Apollo.GetString(1) == "Cancel"
+
     return o
 end
 
@@ -555,7 +557,7 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 
 	local shouldShowProc = false
 	local buffName = ProcsHUD.CodeEnumProcSpellBuff[spellId]
-	if buffName ~= nil then
+	if buffName ~= nil and self.isEnglishLocale then
 		local tBuffs = unitPlayer:GetBuffs().arBeneficial
 		for _, buff in pairs(tBuffs) do
 			if buff.splEffect:GetName() == buffName then
