@@ -565,6 +565,13 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 				break
 			end
 		end
+		local tBuffs = unitPlayer:GetBuffs().arHarmful
+		for _, buff in pairs(tBuffs) do
+			if buff.splEffect:GetName() == buffName then
+				shouldShowProc = true;
+				break
+			end
+		end
 	else
 		if procType == ProcsHUD.CodeEnumProcType.CriticalDmg then -- Let's check if we scored a critical
 			shouldShowProc = os.difftime(os.time(), self.lastCriticalDmgTime) < CRITICAL_TIME
