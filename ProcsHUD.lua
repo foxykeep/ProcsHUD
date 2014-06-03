@@ -59,20 +59,20 @@ ProcsHUD.CodeEnumProcSpellName = {
 
 ProcsHUD.CodeEnumProcSpellSprite = {
 	-- Engineer
-	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = "icon_QuickBurst",
-	[ProcsHUD.CodeEnumProcSpellId.Feedback] = "icon_Feedback",
+	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = "ProcsHUDSprites:icon_QuickBurst",
+	[ProcsHUD.CodeEnumProcSpellId.Feedback] = "ProcsHUDSprites:icon_Feedback",
 	-- Spellslinger
-	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = "icon_FlameBurst",
+	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = "ProcsHUDSprites:icon_FlameBurst",
 	-- Warrior
-	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = "icon_BreachingStrikes",
-	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "icon_AtomicSpear",
-	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = "icon_ShieldBurst",
+	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = "ProcsHUDSprites:icon_BreachingStrikes",
+	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "ProcsHUDSprites:icon_AtomicSpear",
+	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = "ProcsHUDSprites:icon_ShieldBurst",
 	-- Stalker
-	[ProcsHUD.CodeEnumProcSpellId.Punish] = "icon_Punish",
-	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "icon_Decimate",
+	[ProcsHUD.CodeEnumProcSpellId.Punish] = "ProcsHUDSprites:icon_Punish",
+	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "ProcsHUDSprites:icon_Decimate",
 	-- Medic
-	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "icon_Atomize",
-	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "icon_DualShock"
+	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "ProcsHUDSprites:icon_Atomize",
+	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "ProcsHUDSprites:icon_DualShock"
 }
 
 ProcsHUD.CodeEnumProcSpellBuff = {
