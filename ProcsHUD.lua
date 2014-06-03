@@ -9,6 +9,7 @@ require "Window"
 -- Create locale for FR and DE for the buff tracking
 -- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
 -- Make the proc window not escapable.
+-- Export lib functionality to a lib.
 
 
 -----------------------------------------------------------------------------------------------
