@@ -19,6 +19,12 @@ local ProcsHUD = {}
 -----------------------------------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------------------------------
+ProcsHUD.CodeEnumLanguage = {
+	English = 1,
+	French = 2,
+	German = 3
+}
+
 ProcsHUD.CodeEnumProcType = {
 	CriticalDmg = 1,
 	CriticalDmgOrHeal = 2,
@@ -83,7 +89,11 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 ProcsHUD.CodeEnumProcSpellBuff = {
 	-- Engineer
 	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.Feedback] = "Feedback",
+	[ProcsHUD.CodeEnumProcSpellId.Feedback] = {
+		ProcsHUD.CodeEnumLanguage.English = "Feedback",
+		ProcsHUD.CodeEnumLanguage.French = nil,
+		ProcsHUD.CodeEnumLanguage.German = nil
+	},
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
 	-- Warrior
@@ -91,11 +101,23 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
 	-- Stalker
-	[ProcsHUD.CodeEnumProcSpellId.Punish] = "Punish",
+	[ProcsHUD.CodeEnumProcSpellId.Punish] = {
+		ProcsHUD.CodeEnumLanguage.English = "Punish",
+		ProcsHUD.CodeEnumLanguage.French = nil,
+		ProcsHUD.CodeEnumLanguage.German = nil
+	},
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
 	-- Medic
-	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "Clear!",
-	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "Clear!"
+	[ProcsHUD.CodeEnumProcSpellId.Atomize] = {
+		ProcsHUD.CodeEnumLanguage.English = "Clear!",
+		ProcsHUD.CodeEnumLanguage.French = nil,
+		ProcsHUD.CodeEnumLanguage.German = nil
+	},
+	[ProcsHUD.CodeEnumProcSpellId.DualShock] = {
+		ProcsHUD.CodeEnumLanguage.English = "Clear!",
+		ProcsHUD.CodeEnumLanguage.French = nil,
+		ProcsHUD.CodeEnumLanguage.German = nil
+	}
 }
 
 ProcsHUD.ProcSpells = {
@@ -230,7 +252,15 @@ function ProcsHUD:new(o)
 	self.onRestoreCalled = false
 	self.onXmlDocLoadedCalled = false
 
-	self.isEnglishLocale = Apollo.GetString(1) == "Cancel"
+	self.locale = nil;
+	local cancelString = Apollo.GetString(1);
+	if cancelString == "Cancel" then
+		self.locale = ProcsHUD.CodeEnumLanguage.English;
+	elseif cancelString == "Annuler" then
+		self.locale = ProcsHUD.CodeEnumLanguage.French;
+	elseif cancelString == "Abbrechen" then
+		self.locale = ProcsHUD.CodeEnumLanguage.German;
+	end
 
     return o
 end
@@ -561,23 +591,31 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	end
 
 	local shouldShowProc = false
-	local buffName = ProcsHUD.CodeEnumProcSpellBuff[spellId]
-	if buffName ~= nil and self.isEnglishLocale then
-		local tBuffs = unitPlayer:GetBuffs().arBeneficial
-		for _, buff in pairs(tBuffs) do
-			if buff.splEffect:GetName() == buffName then
-				shouldShowProc = true;
-				break
+	local tBuffName = ProcsHUD.CodeEnumProcSpellBuff[spellId]
+	local buffTrackingDone = false
+	if tBuffName ~= nil then
+		local buffName = tBuffName[self.locale]
+		if buffName ~= nil then
+			buffTrackingDone = true
+			local tBuffs = unitPlayer:GetBuffs().arBeneficial
+			for _, buff in pairs(tBuffs) do
+				if buff.splEffect:GetName() == buffName then
+					shouldShowProc = true;
+					break
+				end
+			end
+			local tBuffs = unitPlayer:GetBuffs().arHarmful
+			for _, buff in pairs(tBuffs) do
+				if buff.splEffect:GetName() == buffName then
+					shouldShowProc = true;
+					break
+				end
 			end
 		end
-		local tBuffs = unitPlayer:GetBuffs().arHarmful
-		for _, buff in pairs(tBuffs) do
-			if buff.splEffect:GetName() == buffName then
-				shouldShowProc = true;
-				break
-			end
-		end
-	else
+	end
+
+	-- We didn't use the buff tracking. So let's use the old method.
+	if not buffTrackingDone then
 		if procType == ProcsHUD.CodeEnumProcType.CriticalDmg then -- Let's check if we scored a critical
 			shouldShowProc = os.difftime(os.time(), self.lastCriticalDmgTime) < CRITICAL_TIME
 		elseif procType == ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal then -- Let's check if we did a critical heal
