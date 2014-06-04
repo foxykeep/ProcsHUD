@@ -10,6 +10,7 @@ require "Window"
 -- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
 -- Make the proc window not escapable.
 -- Export lib functionality to a lib.
+-- Add option to adjust proc windows size
 
 
 -----------------------------------------------------------------------------------------------
@@ -302,7 +303,7 @@ function ProcsHUD:OnLoad()
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
 
 	Apollo.RegisterEventHandler("AbilityBookChange", "OnAbilityBookChange", self)
-	Apollo.RegisterEventHandler("DamageOrHealingDone", "OnDamageOrHealing", self)
+	Apollo.RegisterEventHandler("CombatLogDamage", "OnCombatLogDamage", self)
 	Apollo.RegisterEventHandler("AttackMissed", "OnMiss", self)
 	Apollo.RegisterEventHandler("VarChange_FrameCount", "OnFrame", self)
 
@@ -492,14 +493,12 @@ end
 -- Critical detection
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:OnDamageOrHealing(unitCaster, unitTarget, eDamageType, nDamage, nShieldDamaged, nAbsorptionAmount, bCritical)
-	if unitCaster ~= nil and unitCaster == GameLib.GetPlayerUnit() then
-		if eDamageType == GameLib.CodeEnumDamageType.Heal or eDamageType == GameLib.CodeEnumDamageType.HealShields then
-			if bCritical then
+function ProcsHUD:OnCombatLogDamage(tData)
+	if tData.unitCaster ~= nil and tData.unitCaster == GameLib.GetPlayerUnit() then
+		if not tData.bPeriodic and tData.eCombatResult == GameLib.CodeEnumCombatResult.Critical then
+			if tData.eDamageType == GameLib.CodeEnumDamageType.Heal or tData.eDamageType == GameLib.CodeEnumDamageType.HealShields then
 				self.lastCriticalHealTime = os.time()
-			end
-		else
-			if bCritical then
+			else
 				self.lastCriticalDmgTime = os.time()
 			end
 		end
