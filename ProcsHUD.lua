@@ -18,6 +18,8 @@ require "Window"
 -----------------------------------------------------------------------------------------------
 local ProcsHUD = {}
 
+local foxyLib = nil
+
 -----------------------------------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------------------------------
@@ -135,36 +137,6 @@ ProcsHUD.CodeEnumSounds = {
 local CRITICAL_TIME = 5
 local DEFLECT_TIME = 4
 
-local abilitiesList = nil
-local function GetAbilitiesList()
-	if abilitiesList == nil then
-		abilitiesList = AbilityBook.GetAbilitiesList()
-	end
-	return abilitiesList
-end
-
-local function DeepCopy(orig)
-    local orig_type = type(orig)
-    local copy
-    if orig_type == 'table' then
-        copy = {}
-        for orig_key, orig_value in next, orig, nil do
-            copy[DeepCopy(orig_key)] = DeepCopy(orig_value)
-        end
-        setmetatable(copy, DeepCopy(getmetatable(orig)))
-    else -- number, string, boolean, etc
-        copy = orig
-    end
-    return copy
-end
-
-local function NullToZero(d)
-	if d == nil then
-		return 0
-	end
-	return d
-end
-
 local defaultSettings = {
 	cooldownLogic = ProcsHUD.CodeEnumCooldownLogic.Hide,
 	activeSpells = {
@@ -217,23 +189,6 @@ function ProcsHUD:new(o)
     setmetatable(o, self)
     self.__index = self
 
-	self.lastCriticalDmgTime = 0
-	self.lastCriticalHealTime = 0
-	self.lastDeflectTime = 0
-
-	self.lastCooldownLeft = 0
-
-	self.tActiveAbilities = {}
-	self.tSpellCache = {}
-
-	self.bUnlockFrames = false
-	self.userSettings = DeepCopy(defaultSettings)
-
-	self.onRestoreCalled = false
-	self.onXmlDocLoadedCalled = false
-
-	self.isEnglishLocale = Apollo.GetString(1) == "Cancel"
-
     return o
 end
 
@@ -244,7 +199,9 @@ end
 function ProcsHUD:Init()
 	local bHasConfigurateFunction = true
 	local strConfigureButtonText = "ProcsHUD"
-	local tDependencies = {}
+	local tDependencies = {
+		"FoxyLib-1.0"
+	}
     Apollo.RegisterAddon(self, bHasConfigurateFunction, strConfigureButtonText, tDependencies)
 end
 
@@ -260,9 +217,9 @@ function ProcsHUD:OnSave(eType)
 
     local tSave = {}
     tSave.cooldownLogic = self.userSettings.cooldownLogic
-	tSave.activeSpells = DeepCopy(self.userSettings.activeSpells)
-	tSave.spellSounds = DeepCopy(self.userSettings.spellSounds)
-	tSave.wndProcsPositions = DeepCopy(self.userSettings.wndProcsPositions)
+	tSave.activeSpells = foxyLib.DeepCopy(self.userSettings.activeSpells)
+	tSave.spellSounds = foxyLib.DeepCopy(self.userSettings.spellSounds)
+	tSave.wndProcsPositions = foxyLib.DeepCopy(self.userSettings.wndProcsPositions)
 
 	return tSave
 end
@@ -273,16 +230,16 @@ function ProcsHUD:OnRestore(eType, tSave)
 	end
 
 	self.userSettings.cooldownLogic = tSave.cooldownLogic
-	self.userSettings.activeSpells = DeepCopy(tSave.activeSpells)
+	self.userSettings.activeSpells = foxyLib.DeepCopy(tSave.activeSpells)
 	if tSave.spellSounds then
-		self.userSettings.spellSounds = DeepCopy(tSave.spellSounds)
+		self.userSettings.spellSounds = foxyLib.DeepCopy(tSave.spellSounds)
 	else
-		self.userSettings.spellSounds = DeepCopy(defaultSettings.spellSounds)
+		self.userSettings.spellSounds = foxyLib.DeepCopy(defaultSettings.spellSounds)
 	end
 	if tSave.wndProcsPositions then
-		self.userSettings.wndProcsPositions = DeepCopy(tSave.wndProcsPositions)
+		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(tSave.wndProcsPositions)
 	else
-		self.userSettings.wndProcsPositions = DeepCopy(defaultSettings.wndProcsPositions)
+		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(defaultSettings.wndProcsPositions)
 	end
 
 	-- Data saved in future versions must be lazy restored (if present, grab from tSave else
@@ -298,6 +255,26 @@ end
 -----------------------------------------------------------------------------------------------
 
 function ProcsHUD:OnLoad()
+	foxyLib = Apollo.GetPackage("FoxyLib-1.0").tPackage
+
+	-- Initialize the fields
+	self.lastCriticalDmgTime = 0
+	self.lastCriticalHealTime = 0
+	self.lastDeflectTime = 0
+
+	self.lastCooldownLeft = 0
+
+	self.tActiveAbilities = {}
+	self.tSpellCache = {}
+
+	self.bUnlockFrames = false
+	self.userSettings = foxyLib.DeepCopy(defaultSettings)
+
+	self.onRestoreCalled = false
+	self.onXmlDocLoadedCalled = false
+
+	self.isEnglishLocale = Apollo.GetString(1) == "Cancel"
+
 	-- Create the form
 	self.xmlDoc = XmlDoc.CreateFromFile("ProcsHUD.xml")
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
@@ -587,7 +564,7 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 		elseif procType == ProcsHUD.CodeEnumProcType.Deflect then -- Let's check if we deflected a hit
 			shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
 		elseif procType == ProcsHUD.CodeEnumProcType.NoShield then -- Let's check if we are at 0 shield
-			shouldShowProc = NullToZero(unitPlayer:GetShieldCapacity()) == 0
+			shouldShowProc = foxyLib.NullToZero(unitPlayer:GetShieldCapacity()) == 0
 		end
 	end
 
@@ -682,7 +659,7 @@ function ProcsHUD:GetSpellById(spellId)
 		return splObject
 	end
 
-	local abilities = GetAbilitiesList()
+	local abilities = foxyLib.GetAbilitiesList()
 	if not abilities then
 		return
 	end
@@ -877,7 +854,7 @@ function ProcsHUD:UnlockFrames()
 end
 
 function ProcsHUD:SettingsOnRestorePositions(wndHandler, wndControl, eMouseButton)
-	self.userSettings.wndProcsPositions = DeepCopy(defaultSettings.wndProcsPositions)
+	self.userSettings.wndProcsPositions = foxyLib.DeepCopy(defaultSettings.wndProcsPositions)
 	self:PositionWndProcs()
 end
 
