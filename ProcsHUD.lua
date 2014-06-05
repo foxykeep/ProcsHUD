@@ -107,20 +107,20 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Punish",
-		[ProcsHUD.CodeEnumLanguage.French] = nil,
-		[ProcsHUD.CodeEnumLanguage.German] = nil
+		[ProcsHUD.CodeEnumLanguage.French] = "Punition",
+		[ProcsHUD.CodeEnumLanguage.German] = "Übel zurichten"
 	},
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Clear!",
 		[ProcsHUD.CodeEnumLanguage.French] = nil,
-		[ProcsHUD.CodeEnumLanguage.German] = nil
+		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
 	},
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Clear!",
 		[ProcsHUD.CodeEnumLanguage.French] = nil,
-		[ProcsHUD.CodeEnumLanguage.German] = nil
+		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
 	}
 }
 
