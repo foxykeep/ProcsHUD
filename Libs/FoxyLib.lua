@@ -63,6 +63,28 @@ function FoxyLib.GetAbilitiesList()
 	return abilitiesList
 end
 
+-----------------------------------------------------------------------------------------------\
+-- FoxyLib locale functions
+-----------------------------------------------------------------------------------------------
+
+--
+-- Returns:
+-- * 1 for English
+-- * 2 for French
+-- * 3 for German
+-- * nil otherwise
+function FoxyLib.GetLocale()
+	local cancelString = Apollo.GetString(1)
+	if cancelString == "Cancel" then
+		return 1
+	elseif cancelString == "Annuler" then
+		return 2
+	elseif cancelString == "Abbrechen" then
+		return 3
+	else
+		return nil
+	end
+end
 
 -----------------------------------------------------------------------------------------------
 -- FoxyLib Instance
