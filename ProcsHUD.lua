@@ -5,12 +5,18 @@
 
 require "Window"
 
+-- Bugs
+-- Dont show for procs not working with Atomize (but not dual shock !!)
+
 -- TODO
--- Create locale for FR and DE for the buff tracking
--- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
--- Make the proc window not escapable.
--- Export lib functionality to a lib.
 -- Add option to adjust proc windows size
+-- Add option to proc only in combat
+-- Change hide to use SetOpacity instead (and add a setting for it)
+-- Class options:
+---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
+---- Bio Shell and Ricochet T4 for Engineers
+---- SS Assassinate if you have charges
+---- Esper => show proc when at 5 PP
 
 
 -----------------------------------------------------------------------------------------------
@@ -114,12 +120,12 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Clear!",
-		[ProcsHUD.CodeEnumLanguage.French] = nil,
+		[ProcsHUD.CodeEnumLanguage.French] = "Dégagez !",
 		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
 	},
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Clear!",
-		[ProcsHUD.CodeEnumLanguage.French] = nil,
+		[ProcsHUD.CodeEnumLanguage.French] = "Dégagez !",
 		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
 	}
 }
@@ -489,35 +495,6 @@ end
 
 
 -----------------------------------------------------------------------------------------------
--- Critical detection
------------------------------------------------------------------------------------------------
-
-function ProcsHUD:OnCombatLogDamage(tData)
-	if tData.unitCaster ~= nil and tData.unitCaster == GameLib.GetPlayerUnit() then
-		if not tData.bPeriodic and tData.eCombatResult == GameLib.CodeEnumCombatResult.Critical then
-			if tData.eDamageType == GameLib.CodeEnumDamageType.Heal or tData.eDamageType == GameLib.CodeEnumDamageType.HealShields then
-				self.lastCriticalHealTime = os.time()
-			else
-				self.lastCriticalDmgTime = os.time()
-			end
-		end
-	end
-end
-
------------------------------------------------------------------------------------------------
--- Deflect detection
------------------------------------------------------------------------------------------------
-
-function ProcsHUD:OnMiss(unitCaster, unitTarget, eMissType)
-	if unitTarget ~= nil and unitTarget == GameLib.GetPlayerUnit() then
-		if eMissType == GameLib.CodeEnumMissType.Dodge then
-			self.lastDeflectTime = os.time()
-		end
-	end
-end
-
-
------------------------------------------------------------------------------------------------
 -- Procs display management
 -----------------------------------------------------------------------------------------------
 
@@ -525,10 +502,7 @@ function ProcsHUD:ProcessProcs(unitPlayer, wndProcIndex, procType, tSpells)
 	if wndProcIndex > 0 and procType and tSpells then
 		for _, spell in pairs(tSpells) do
 			if spell[2] == procType then
-				-- Let's check if the user didn't deactivate the spell in the options
-				if self.userSettings.activeSpells[spell[1]] then
-					wndProcIndex = self:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell[1])
-				end
+				wndProcIndex = self:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell[1])
 			end
 		end
 	end
@@ -541,6 +515,12 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	if not wndProc then
 		-- We don't have a valid window to display the proc. This should normally never happen.
 		Print("We don't have a window to display the proc. Something went really wrong")
+		return wndProcIndex
+	end
+
+	-- Let's check if the user didn't deactivate the spell in the options
+	if not self.userSettings.activeSpells[spellId] then
+		-- The spell is deactivated in the options. Nothing to do here.
 		return wndProcIndex
 	end
 
@@ -604,6 +584,7 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 		local sprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
 		wndProc:FindChild("Icon"):SetSprite(sprite)
 
+		-- Show the cooldown if on overlay mode
 		local wndProcCooldown = wndProc:FindChild("Cooldown")
 		if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Overlay then
 			wndProcCooldown:Show(true)
@@ -628,10 +609,12 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 		local spellSound = self.userSettings.spellSounds[spellId]
 		if spellSound ~= -1 then
 			if cooldownLeft == 0 then
+				-- We are in hide mode, so we play the sound only if the wndProc was hidden before.
 				if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
 					if not wndProc:IsVisible() then
 						Sound.Play(spellSound)
 					end
+				-- We are in Overlay mode, so we play the sound only if the spell was on cooldown before.
 				elseif self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Overlay then
 					if self.lastCooldownLeft > 0 then
 						Sound.Play(spellSound)
@@ -649,6 +632,35 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	end
 
 	return wndProcIndex
+end
+
+
+-----------------------------------------------------------------------------------------------
+-- Critical detection
+-----------------------------------------------------------------------------------------------
+
+function ProcsHUD:OnCombatLogDamage(tData)
+	if tData.unitCaster ~= nil and tData.unitCaster == GameLib.GetPlayerUnit() then
+		if not tData.bPeriodic and tData.eCombatResult == GameLib.CodeEnumCombatResult.Critical then
+			if tData.eDamageType == GameLib.CodeEnumDamageType.Heal or tData.eDamageType == GameLib.CodeEnumDamageType.HealShields then
+				self.lastCriticalHealTime = os.time()
+			else
+				self.lastCriticalDmgTime = os.time()
+			end
+		end
+	end
+end
+
+-----------------------------------------------------------------------------------------------
+-- Deflect detection
+-----------------------------------------------------------------------------------------------
+
+function ProcsHUD:OnMiss(unitCaster, unitTarget, eMissType)
+	if unitTarget ~= nil and unitTarget == GameLib.GetPlayerUnit() then
+		if eMissType == GameLib.CodeEnumMissType.Dodge then
+			self.lastDeflectTime = os.time()
+		end
+	end
 end
 
 
