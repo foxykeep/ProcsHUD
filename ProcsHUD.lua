@@ -10,7 +10,8 @@ require "Window"
 
 -- TODO
 -- Add option to adjust proc windows size
--- Add option to proc only in combat
+-- Move spells to be associated with one frame all the time (and show icon when unlocking frames)
+-- Add a disabled mode to the list of spells in the settings according to the LAS. + tooltip
 -- Change hide to use SetOpacity instead (and add a setting for it)
 -- Class options:
 ---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
@@ -205,7 +206,9 @@ local defaultSettings = {
 		[1] = {250, -37, 324, 37},
 		[2] = {330, -37, 404, 37},
 		[3] = {250, 43, 324, 117},
-	}
+		[4] = {330, 43, 404, 117},
+	},
+	showOnlyInCombat = false
 }
 
 -----------------------------------------------------------------------------------------------
@@ -245,9 +248,10 @@ function ProcsHUD:OnSave(eType)
 
     local tSave = {}
     tSave.cooldownLogic = self.userSettings.cooldownLogic
-	tSave.activeSpells = foxyLib.DeepCopy(self.userSettings.activeSpells)
-	tSave.spellSounds = foxyLib.DeepCopy(self.userSettings.spellSounds)
-	tSave.wndProcsPositions = foxyLib.DeepCopy(self.userSettings.wndProcsPositions)
+    tSave.activeSpells = foxyLib.DeepCopy(self.userSettings.activeSpells)
+    tSave.spellSounds = foxyLib.DeepCopy(self.userSettings.spellSounds)
+    tSave.wndProcsPositions = foxyLib.DeepCopy(self.userSettings.wndProcsPositions)
+    tSave.showOnlyInCombat = self.userSettings.showOnlyInCombat
 
 	return tSave
 end
@@ -266,8 +270,17 @@ function ProcsHUD:OnRestore(eType, tSave)
 	end
 	if tSave.wndProcsPositions then
 		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(tSave.wndProcsPositions)
+		if #self.userSettings.wndProcsPositions == 3 then
+			-- We need to add the 4th procs position
+			self.userSettings.wndProcsPositions[4] = foxyLib.DeepCopy(defaultSettings.wndProcsPositions[4])
+		end
 	else
 		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(defaultSettings.wndProcsPositions)
+	end
+	if tSave.showOnlyInCombat then
+		self.userSettings.showOnlyInCombat = tSave.showOnlyInCombat
+	else
+		self.userSettings.showOnlyInCombat = defaultSettings.showOnlyInCombat
 	end
 
 	-- Data saved in future versions must be lazy restored (if present, grab from tSave else
@@ -333,30 +346,25 @@ function ProcsHUD:OnDocLoaded()
 		end
 		self.wndSettings:Show(false)
 
-		-- Get the Settings spell windows
-		self.tWndSettingsSpells = {
-			self.wndSettings:FindChild("WndSpell1"),
-			self.wndSettings:FindChild("WndSpell2"),
-			self.wndSettings:FindChild("WndSpell3")
-		}
-		if not self.tWndSettingsSpells[1] or not self.tWndSettingsSpells[2] or not self.tWndSettingsSpells[3] then
-			Apollo.AddAddonErrorText(self, "Could not load the settings window for some reason.")
-			return
-		end
+		-- Create the Settings spell windows array
+		self.tWndSettingsSpells = {}
 
 		-- Load the proc frame windows
 		self.tWndProcs = {
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon1", nil, self),
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon2", nil, self),
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon3", nil, self)
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self),
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self),
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self),
+			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self)
 		}
-		if not self.tWndProcs[1] or not self.tWndProcs[2] or not self.tWndProcs[3] then
+		if not self.tWndProcs[1] or not self.tWndProcs[2] or not self.tWndProcs[3] or not self.tWndProcs[4] then
 			Apollo.AddAddonErrorText(self, "Could not load the proc frame windows for some reason.")
 			return
 		end
-		for _, wndProc in pairs(self.tWndProcs) do
+		for i, wndProc in pairs(self.tWndProcs) do
 			wndProc:Show(false)
-			wndProc:FindChild("Number"):Show(false)
+			local wndNumber = wndProc:FindChild("Number")
+			wndNumber:Show(false)
+			wndNumber:SetText(i)
 			wndProc:FindChild("Cooldown"):Show(false)
 		end
 
@@ -455,6 +463,11 @@ function ProcsHUD:OnFrame()
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
 		-- We don't have the player object yet.
+		return
+	end
+
+	if self.userSettings.showOnlyInCombat and not unitPlayer:IsInCombat() then
+		-- We want to show only in combat and we are not in combat.
 		return
 	end
 
@@ -785,15 +798,24 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 	end
 
 	-- Spells management settings
+	local wndSettingsBackground = self.wndSettings:FindChild("SettingsBackground")
 	for i, spell in pairs(tSpells) do
 		local spellId = spell[1]
 		local spellObject = self:GetSpellById(spellId)
 
 		local wndSpell = self.tWndSettingsSpells[i]
-		wndSpell:Show(true)
+		if not wndSpell then
+			wndSpell = Apollo.LoadForm(self.xmlDoc, "ProcsSettingsWndSpell", wndSettingsBackground, self)
+			local left, top, right, bottom = wndSpell:GetAnchorOffsets()
+			local offset = 60 * (i - 1)
+			wndSpell:SetAnchorOffsets(left, 275 + offset, right, 325 + offset)
+			self.tWndSettingsSpells[i] = wndSpell
+		end
 
 		-- Is active
-		wndSpell:FindChild("ButtonSpell"):SetCheck(self.userSettings.activeSpells[spellId])
+		local wndButtonSpell = wndSpell:FindChild("ButtonSpell")
+		wndButtonSpell:SetCheck(self.userSettings.activeSpells[spellId])
+		wndButtonSpell:SetData(spellId)
 
 		-- Spell icon + tooltip
 		local spellSprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
@@ -823,12 +845,10 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 			selectedSound = "None"
 		end
 		spellSoundComboBox:SelectItemByText(selectedSound)
-	end
+		spellSoundComboBox:SetData(spellId)
 
-	-- Hide the remaining spell rows
-	for i=#tSpells+1, 3 do
-		local wndSpell = self.tWndSettingsSpells[i]
-		wndSpell:Show(false)
+		local wndSpellSoundPlay = wndSpell:FindChild("SpellSoundPlay")
+		wndSpellSoundPlay:SetData(spellId)
 	end
 end
 
@@ -900,6 +920,10 @@ function ProcsHUD:SettingsOnRestorePositions(wndHandler, wndControl, eMouseButto
 	self:PositionWndProcs()
 end
 
+function ProcsHUD:SettingsOnInCombatToggle(wndHandler, wndControl, eMouseButton)
+	self.userSettings.showOnlyInCombat = self.wndSettings:FindChild("ButtonOnlyInCombat"):IsChecked()
+end
+
 function ProcsHUD:SettingsOnCooldownToggle(wndHandler, wndControl, eMouseButton)
 	if self.wndSettings:FindChild("ButtonCooldownHideFrame"):IsChecked() then
 		self.userSettings.cooldownLogic = ProcsHUD.CodeEnumCooldownLogic.Hide
@@ -908,19 +932,7 @@ function ProcsHUD:SettingsOnCooldownToggle(wndHandler, wndControl, eMouseButton)
 	end
 end
 
-function ProcsHUD:SettingsOnSpell1Toggle(wndHandler, wndControl, eMouseButton)
-	self:SettingsToggleSpell(1)
-end
-
-function ProcsHUD:SettingsOnSpell2Toggle(wndHandler, wndControl, eMouseButton)
-	self:SettingsToggleSpell(2)
-end
-
-function ProcsHUD:SettingsOnSpell3Toggle(wndHandler, wndControl, eMouseButton)
-	self:SettingsToggleSpell(3)
-end
-
-function ProcsHUD:SettingsToggleSpell(wndSpellIndex)
+function ProcsHUD:SettingsOnSpellToggle(wndHandler, wndControl, eMouseButton)
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
 		-- We don't have the player object yet.
@@ -935,25 +947,11 @@ function ProcsHUD:SettingsToggleSpell(wndSpellIndex)
 		return
 	end
 
-	local isSpellActive = self.tWndSettingsSpells[wndSpellIndex]:FindChild("ButtonSpell"):IsChecked()
-
-	local spellId = tSpells[wndSpellIndex][1]
-	self.userSettings.activeSpells[spellId] = isSpellActive
+	local spellId = wndControl:GetData()
+	self.userSettings.activeSpells[spellId] = wndControl:IsChecked()
 end
 
-function ProcsHUD:SettingsOnSpell1SoundChanged(wndHandler, wndControl)
-	self:SettingsChangeSoundSpell(1)
-end
-
-function ProcsHUD:SettingsOnSpell2SoundChanged(wndHandler, wndControl)
-	self:SettingsChangeSoundSpell(2)
-end
-
-function ProcsHUD:SettingsOnSpell3SoundChanged(wndHandler, wndControl)
-	self:SettingsChangeSoundSpell(3)
-end
-
-function ProcsHUD:SettingsChangeSoundSpell(wndSpellIndex)
+function ProcsHUD:SettingsOnSpellSoundChanged(wndHandler, wndControl)
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
 		-- We don't have the player object yet.
@@ -968,30 +966,16 @@ function ProcsHUD:SettingsChangeSoundSpell(wndSpellIndex)
 		return
 	end
 
-	local spellSoundComboBox = self.tWndSettingsSpells[wndSpellIndex]:FindChild("SpellSound")
-	local selectedSound = spellSoundComboBox:GetSelectedText()
+	local selectedSound = wndControl:GetSelectedText()
 	if selectedSound == "None" then
 		selectedSound = -1
 	end
 
-	local spellId = tSpells[wndSpellIndex][1]
+	local spellId = wndControl:GetData()
 	self.userSettings.spellSounds[spellId] = selectedSound
 end
 
-function ProcsHUD:SettingsOnSpell1SoundPlay(wndHandler, wndControl, eMouseButton)
-	self:SettingsPlaySpellSound(1)
-end
-
-function ProcsHUD:SettingsOnSpell2SoundPlay(wndHandler, wndControl, eMouseButton)
-	self:SettingsPlaySpellSound(2)
-end
-
-function ProcsHUD:SettingsOnSpell3SoundPlay(wndHandler, wndControl, eMouseButton)
-	self:SettingsPlaySpellSound(3)
-end
-
-function ProcsHUD:SettingsPlaySpellSound(wndSpellIndex)
-	Event_FireGenericEvent("SendVarToRover", "SettingsPlaySpellSound", wndSpellIndex)
+function ProcsHUD:SettingsOnSpellSoundPlay(wndHandler, wndControl, eMouseButton)
 	local unitPlayer = GameLib.GetPlayerUnit()
 	if not unitPlayer then
 		-- We don't have the player object yet.
@@ -1006,10 +990,8 @@ function ProcsHUD:SettingsPlaySpellSound(wndSpellIndex)
 		return
 	end
 
-	local spellId = tSpells[wndSpellIndex][1]
+	local spellId = wndControl:GetData()
 	local spellSound = self.userSettings.spellSounds[spellId]
-	Event_FireGenericEvent("SendVarToRover", "play_spellId", spellId)
-	Event_FireGenericEvent("SendVarToRover", "play_spellSound", spellSound)
 	if spellSound ~= -1 then
 		Sound.Play(spellSound)
 	end
