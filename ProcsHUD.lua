@@ -468,6 +468,7 @@ function ProcsHUD:OnFrame()
 
 	if self.userSettings.showOnlyInCombat and not unitPlayer:IsInCombat() then
 		-- We want to show only in combat and we are not in combat.
+		self:HideRemainingProcWindows(1)
 		return
 	end
 
@@ -497,6 +498,11 @@ function ProcsHUD:OnFrame()
 	-- Manage no shield procs
 	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.NoShield, tSpells)
 
+	-- Hide the remaining proc windows.
+	self:HideRemainingProcWindows(wndProcIndex)
+end
+
+function ProcsHUD:HideRemainingProcWindows(wndProcIndex)
 	-- Hide the remaining proc windows. At this point wndProcIndex is the next window to use, so we
 	-- need to hide all the remaining windows including the wndProcIndex one.
 	for index, wndProc in pairs(self.tWndProcs) do
