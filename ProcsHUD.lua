@@ -362,9 +362,6 @@ function ProcsHUD:OnDocLoaded()
 		end
 		for i, wndProc in pairs(self.tWndProcs) do
 			wndProc:Show(false)
-			local wndNumber = wndProc:FindChild("Number")
-			wndNumber:Show(false)
-			wndNumber:SetText(i)
 			wndProc:FindChild("Cooldown"):Show(false)
 		end
 
@@ -468,7 +465,7 @@ function ProcsHUD:OnFrame()
 
 	if self.userSettings.showOnlyInCombat and not unitPlayer:IsInCombat() then
 		-- We want to show only in combat and we are not in combat.
-		self:HideRemainingProcWindows(1)
+		self:HideAllProcWindows()
 		return
 	end
 
@@ -484,31 +481,14 @@ function ProcsHUD:OnFrame()
 		return
 	end
 
-	local wndProcIndex = 1
-
-	-- Manage damage crit procs (we pass the wndProcIndex and we receive the new wndProcIndex if we display a window)
-	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.CriticalDmg, tSpells)
-
-	-- Manage damage or heal crit procs
-	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal, tSpells)
-
-	-- Manage deflect hit procs
-	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.Deflect, tSpells)
-
-	-- Manage no shield procs
-	wndProcIndex = self:ProcessProcs(unitPlayer, wndProcIndex, ProcsHUD.CodeEnumProcType.NoShield, tSpells)
-
-	-- Hide the remaining proc windows.
-	self:HideRemainingProcWindows(wndProcIndex)
+	-- Manage the procs
+	self:ProcessProcs(unitPlayer, tSpells)
 end
 
-function ProcsHUD:HideRemainingProcWindows(wndProcIndex)
-	-- Hide the remaining proc windows. At this point wndProcIndex is the next window to use, so we
-	-- need to hide all the remaining windows including the wndProcIndex one.
+function ProcsHUD:HideAllProcWindows()
+	-- Hide the remaining proc windows. Every index above nbProcs are unused windows
 	for index, wndProc in pairs(self.tWndProcs) do
-		if index >= wndProcIndex then
-			wndProc:Show(false)
-		end
+		wndProc:Show(false)
 	end
 end
 
@@ -517,35 +497,33 @@ end
 -- Procs display management
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:ProcessProcs(unitPlayer, wndProcIndex, procType, tSpells)
-	if wndProcIndex > 0 and procType and tSpells then
-		for _, spell in pairs(tSpells) do
-			if spell[2] == procType then
-				wndProcIndex = self:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell[1])
-			end
+function ProcsHUD:ProcessProcs(unitPlayer, tSpells)
+	if unitPlayer and tSpells then
+		for i, spell in pairs(tSpells) do
+			self:ProcessProcsForSpell(unitPlayer, i, spell[1], spell[2])
 		end
 	end
-
-	return wndProcIndex
 end
 
-function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spellId)
+function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spellId, procType)
 	local wndProc = self.tWndProcs[wndProcIndex]
 	if not wndProc then
 		-- We don't have a valid window to display the proc. This should normally never happen.
 		Print("We don't have a window to display the proc. Something went really wrong")
-		return wndProcIndex
+		return
 	end
 
 	-- Let's check if the user didn't deactivate the spell in the options
 	if not self.userSettings.activeSpells[spellId] then
-		-- The spell is deactivated in the options. Nothing to do here.
+		-- The spell is deactivated in the options. Hide the proc window and return.
+		wndProc:Show(false)
 		return wndProcIndex
 	end
 
 	-- Let's test if you have the spell
 	if not self.tActiveAbilities[spellId] then
-		-- You don't have the spell in your LAS. Nothing to do here.
+		-- You don't have the spell in your LAS. Hide the proc window and return.
+		wndProc:Show(false)
 		return wndProcIndex
 	end
 
@@ -553,7 +531,9 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 	local cooldownLeft, cooldownTotalDuration, chargesLeft = self:GetSpellCooldown(spellId)
 	if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
 		if cooldownLeft > 0 and chargesLeft == 0 then
-			-- The spell is in cooldown and we don't have any charge left (for a spell with charges). Nothing to do here.
+			-- The spell is in cooldown and we don't have any charge left (for a spell with charges).
+			-- Hide the proc window and return.
+			wndProc:Show(false)
 			return wndProcIndex
 		end
 	end
@@ -572,11 +552,14 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 					break
 				end
 			end
-			local tBuffs = unitPlayer:GetBuffs().arHarmful
-			for _, buff in pairs(tBuffs) do
-				if buff.splEffect:GetName() == buffName then
-					shouldShowProc = true;
-					break
+			-- If we have found the buff, no need to check the debuffs
+			if not shouldShowProc then
+				local tBuffs = unitPlayer:GetBuffs().arHarmful
+				for _, buff in pairs(tBuffs) do
+					if buff.splEffect:GetName() == buffName then
+						shouldShowProc = true;
+						break
+					end
 				end
 			end
 		end
@@ -648,9 +631,9 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, procType, spell
 
 		-- Increment the wndProcIndex as we have shown a window
 		wndProcIndex = wndProcIndex + 1
+	else
+		wndProc:Show(false)
 	end
-
-	return wndProcIndex
 end
 
 
@@ -894,24 +877,30 @@ function ProcsHUD:UnlockFrames()
 		-- Make all the proc windows visible, show the 1/2/3 and make them movable
 		for index, wndProc in pairs(self.tWndProcs) do
 			if index <= #tSpells then -- No reason to show a wndProc which we will not use
-				wndProc:FindChild("Icon"):SetSprite("")
-				wndProc:FindChild("Number"):Show(true)
+				local spellId = tSpells[index][1]
+				local spellSprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
+				wndProc:FindChild("Icon"):SetSprite(spellSprite)
 				wndProc:FindChild("Cooldown"):Show(false)
 				wndProc:Show(true)
 				wndProc:SetStyle("IgnoreMouse", false)
 				wndProc:SetStyle("Moveable", true)
+				if self.userSettings.activeSpells[spellId] then
+					wndProc:SetOpacity(1)
+				else
+					wndProc:SetOpacity(0.3)
+				end
 			end
 		end
 	else
 		-- Make all procs windows hidden (they will be made visible by the next "on frame"
 		-- if needed), hide the 1/2/3 and make them not movable
 		for index, wndProc in pairs(self.tWndProcs) do
-			wndProc:FindChild("Number"):Show(false)
 			wndProc:FindChild("Cooldown"):Show(true)
 			wndProc:FindChild("Cooldown"):SetText("")
 			wndProc:Show(false)
 			wndProc:SetStyle("IgnoreMouse", true)
 			wndProc:SetStyle("Moveable", false)
+			wndProc:SetOpacity(1)
 
 			-- We also save the new positions to the user settings
 			local left, top, right, bottom = wndProc:GetAnchorOffsets()
@@ -955,6 +944,8 @@ function ProcsHUD:SettingsOnSpellToggle(wndHandler, wndControl, eMouseButton)
 
 	local spellId = wndControl:GetData()
 	self.userSettings.activeSpells[spellId] = wndControl:IsChecked()
+
+	self:UnlockFrames()
 end
 
 function ProcsHUD:SettingsOnSpellSoundChanged(wndHandler, wndControl)
