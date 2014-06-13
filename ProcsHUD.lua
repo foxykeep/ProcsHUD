@@ -720,7 +720,7 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 				-- We are in Overlay mode, so we play the sound only if the spell was on cooldown before.
 				elseif self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Overlay then
 					if self.lastCooldownLeft > 0 then
-						self:PlaySoundy(spellSound, spellId)
+						self:PlaySound(spellSound, spellId)
 					end
 				end
 			end
