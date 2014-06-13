@@ -10,14 +10,11 @@ require "Window"
 
 -- TODO
 -- Add option to adjust proc windows size
--- Move spells to be associated with one frame all the time (and show icon when unlocking frames)
 -- Add a disabled mode to the list of spells in the settings according to the LAS. + tooltip
 -- Change hide to use SetOpacity instead (and add a setting for it)
 -- Class options:
 ---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
----- Bio Shell and Ricochet T4 for Engineers
 ---- SS Assassinate if you have charges
----- Esper => show proc when at 5 PP
 
 
 -----------------------------------------------------------------------------------------------
@@ -40,13 +37,17 @@ ProcsHUD.CodeEnumProcType = {
 	CriticalDmg = 1,
 	CriticalDmgOrHeal = 2,
 	Deflect = 3,
-	NoShield = 4
+	NoShield = 4,
+	Engineer3070Resource = 5,
+	Esper5PP = 6
 }
 
 ProcsHUD.CodeEnumProcSpellId = {
 	-- Engineer
 	QuickBurst = 25673,
 	Feedback = 26059,
+	BioShell = 25538,
+	Ricochet = 25626,
 	-- Spellslinger
 	FlameBurst = 30666,
 	-- Warrior
@@ -58,13 +59,18 @@ ProcsHUD.CodeEnumProcSpellId = {
 	Decimate = 31937,
 	-- Medic
 	Atomize = 25692,
-	DualShock = 47807
+	DualShock = 47807,
+	-- Esper
+	Esper5PP = -1
 }
 
 ProcsHUD.CodeEnumProcSpellName = {
 	-- Engineer
 	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = "Quick Burst",
 	[ProcsHUD.CodeEnumProcSpellId.Feedback] = "Feedback",
+	[ProcsHUD.CodeEnumProcSpellId.BioShell] = "Bio Shell T4",
+	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = "Ricochet T4",
+
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = "FlameBurst",
 	-- Warrior
@@ -76,13 +82,40 @@ ProcsHUD.CodeEnumProcSpellName = {
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "Decimate",
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "Atomize",
-	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "Dual Shock"
+	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "Dual Shock",
+	-- Esper
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "5 Psy Points"
+}
+
+ProcsHUD.CodeEnumProcSpellTooltip = {
+	-- Engineer
+	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Feedback] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.BioShell] = "Instant cast of Bio Shell T4\nin the 30-70 volatility range",
+	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = "Instant cast of Ricochet T4\nin the 30-70 volatility range",
+
+	-- Spellslinger
+	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
+	-- Warrior
+	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
+	-- Stalker
+	[ProcsHUD.CodeEnumProcSpellId.Punish] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
+	-- Medic
+	[ProcsHUD.CodeEnumProcSpellId.Atomize] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.DualShock] = nil,
+	-- Esper
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "Track when you have 5 Psy Points."
 }
 
 ProcsHUD.CodeEnumProcSpellSprite = {
 	-- Engineer
 	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = "ProcsHUDSprites:icon_QuickBurst",
 	[ProcsHUD.CodeEnumProcSpellId.Feedback] = "ProcsHUDSprites:icon_Feedback",
+	[ProcsHUD.CodeEnumProcSpellId.BioShell] = "ProcsHUDSprites:icon_BioShell",
+	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = "ProcsHUDSprites:icon_Ricochet",
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = "ProcsHUDSprites:icon_FlameBurst",
 	-- Warrior
@@ -94,7 +127,9 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "ProcsHUDSprites:icon_Decimate",
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "ProcsHUDSprites:icon_Atomize",
-	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "ProcsHUDSprites:icon_DualShock"
+	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "ProcsHUDSprites:icon_DualShock",
+	-- Esper
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "ProcsHUDSprites:icon_Esper5PP"
 }
 
 ProcsHUD.CodeEnumProcSpellBuff = {
@@ -105,6 +140,8 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 		[ProcsHUD.CodeEnumLanguage.French] = "Rétroaction",
 		[ProcsHUD.CodeEnumLanguage.German] = "Rückkopplung"
 	},
+	[ProcsHUD.CodeEnumProcSpellId.BioShell] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = nil,
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
 	-- Warrior
@@ -128,29 +165,37 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Clear!",
 		[ProcsHUD.CodeEnumLanguage.French] = "Dégagez !",
 		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
-	}
+	},
+	-- Esper
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil
 }
 
+-- Values are { spellId, procType, minTierNeeded }
 ProcsHUD.ProcSpells = {
 	[GameLib.CodeEnumClass.Engineer] = {
-		{ ProcsHUD.CodeEnumProcSpellId.QuickBurst, ProcsHUD.CodeEnumProcType.CriticalDmg },
-		{ ProcsHUD.CodeEnumProcSpellId.Feedback, ProcsHUD.CodeEnumProcType.Deflect }
+		{ ProcsHUD.CodeEnumProcSpellId.QuickBurst, ProcsHUD.CodeEnumProcType.CriticalDmg, 0},
+		{ ProcsHUD.CodeEnumProcSpellId.Feedback, ProcsHUD.CodeEnumProcType.Deflect, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.BioShell, ProcsHUD.CodeEnumProcType.Engineer3070Resource, 5 },
+		{ ProcsHUD.CodeEnumProcSpellId.Ricochet, ProcsHUD.CodeEnumProcType.Engineer3070Resource, 5 }
 	},
 	[GameLib.CodeEnumClass.Spellslinger] = {
-		{ ProcsHUD.CodeEnumProcSpellId.FlameBurst, ProcsHUD.CodeEnumProcType.CriticalDmg }
+		{ ProcsHUD.CodeEnumProcSpellId.FlameBurst, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 }
 	},
 	[GameLib.CodeEnumClass.Warrior] = {
-		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.CriticalDmg },
-		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect },
-		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield }
+		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield, 0 }
 	},
 	[GameLib.CodeEnumClass.Stalker] = {
-		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.CriticalDmg },
-		{ ProcsHUD.CodeEnumProcSpellId.Decimate, ProcsHUD.CodeEnumProcType.Deflect }
+		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.Decimate, ProcsHUD.CodeEnumProcType.Deflect, 0 }
 	},
 	[GameLib.CodeEnumClass.Medic] = {
-		{ ProcsHUD.CodeEnumProcSpellId.Atomize, ProcsHUD.CodeEnumProcType.CriticalDmg },
-		{ ProcsHUD.CodeEnumProcSpellId.DualShock, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal }
+		{ ProcsHUD.CodeEnumProcSpellId.Atomize, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.DualShock, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal, 0 }
+	},
+	[GameLib.CodeEnumClass.Esper] = {
+		{ ProcsHUD.CodeEnumProcSpellId.Esper5PP, ProcsHUD.CodeEnumProcType.Esper5PP, 0 }
 	}
 }
 
@@ -172,6 +217,8 @@ local defaultSettings = {
 		-- Engineer
 		[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = true,
 		[ProcsHUD.CodeEnumProcSpellId.Feedback] = true,
+		[ProcsHUD.CodeEnumProcSpellId.BioShell] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Ricochet] = true,
 		-- Spellslinger
 		[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = true,
 		-- Warrior
@@ -184,11 +231,15 @@ local defaultSettings = {
 		-- Medic
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = true,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = true,
+		-- Esper
+		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = true,
 	},
 	spellSounds = {
 		-- Engineer
 		[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.Feedback] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.BioShell] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Ricochet] = -1,
 		-- Spellslinger
 		[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = -1,
 		-- Warrior
@@ -201,6 +252,8 @@ local defaultSettings = {
 		-- Medic
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = -1,
+		-- Esper
+		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = -1,
 	},
 	wndProcsPositions = {
 		[1] = {250, -37, 324, 37},
@@ -262,12 +315,23 @@ function ProcsHUD:OnRestore(eType, tSave)
 	end
 
 	self.userSettings.cooldownLogic = tSave.cooldownLogic
+
 	self.userSettings.activeSpells = foxyLib.DeepCopy(tSave.activeSpells)
 	if tSave.spellSounds then
 		self.userSettings.spellSounds = foxyLib.DeepCopy(tSave.spellSounds)
 	else
 		self.userSettings.spellSounds = foxyLib.DeepCopy(defaultSettings.spellSounds)
 	end
+	-- Make sure the newly added spells are managed too.
+	for _, spellId in pairs(ProcsHUD.CodeEnumProcSpellId) do
+		if not self.userSettings.activeSpells[spellId] then
+			self.userSettings.activeSpells[spellId] = defaultSettings.activeSpells[spellId]
+		end
+		if not self.userSettings.spellSounds[spellId] then
+			self.userSettings.spellSounds[spellId] = defaultSettings.spellSounds[spellId]
+		end
+	end
+
 	if tSave.wndProcsPositions then
 		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(tSave.wndProcsPositions)
 		if #self.userSettings.wndProcsPositions == 3 then
@@ -277,6 +341,7 @@ function ProcsHUD:OnRestore(eType, tSave)
 	else
 		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(defaultSettings.wndProcsPositions)
 	end
+
 	if tSave.showOnlyInCombat then
 		self.userSettings.showOnlyInCombat = tSave.showOnlyInCombat
 	else
@@ -427,11 +492,17 @@ function ProcsHUD:OnAbilityBookChangerTimer()
     local currentActionSet = ActionSetLib.GetCurrentActionSet()
 
 	for _, spell in pairs(tSpells) do
-		self:CheckAbility(currentActionSet, spell[1])
+		self:CheckAbility(currentActionSet, spell[1], spell[2])
 	end
 end
 
-function ProcsHUD:CheckAbility(currentActionSet, spellId)
+function ProcsHUD:CheckAbility(currentActionSet, spellId, minTierNeeded)
+	if spellId < 0 then
+		-- Special case for the custom abilities (Esper 5 PP for example)
+		self.tActiveAbilities[spellId] = true
+		return
+	end
+
     self.tActiveAbilities[spellId] = false
 
     if not currentActionSet then
@@ -440,7 +511,10 @@ function ProcsHUD:CheckAbility(currentActionSet, spellId)
 
     for _, nAbilityId in pairs(currentActionSet) do
         if nAbilityId == spellId then
-            self.tActiveAbilities[spellId] = true
+			local currentTier = self:GetCurrentTier(spellId)
+			if currentTier >= minTierNeeded then
+				self.tActiveAbilities[spellId] = true
+			end
             return
         end
     end
@@ -500,12 +574,15 @@ end
 function ProcsHUD:ProcessProcs(unitPlayer, tSpells)
 	if unitPlayer and tSpells then
 		for i, spell in pairs(tSpells) do
-			self:ProcessProcsForSpell(unitPlayer, i, spell[1], spell[2])
+			self:ProcessProcsForSpell(unitPlayer, i, spell)
 		end
 	end
 end
 
-function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spellId, procType)
+function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
+	local spellId = spell[1]
+	local procType = spell[2]
+
 	local wndProc = self.tWndProcs[wndProcIndex]
 	if not wndProc then
 		-- We don't have a valid window to display the proc. This should normally never happen.
@@ -577,6 +654,12 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spellId, procTy
 			shouldShowProc = os.difftime(os.time(), self.lastDeflectTime) < DEFLECT_TIME
 		elseif procType == ProcsHUD.CodeEnumProcType.NoShield then -- Let's check if we are at 0 shield
 			shouldShowProc = foxyLib.NullToZero(unitPlayer:GetShieldCapacity()) == 0
+		elseif procType == ProcsHUD.CodeEnumProcType.Engineer3070Resource then -- Let's check if we are in the 30-70 range
+			local volatility = foxyLib.NullToZero(unitPlayer:GetResource(1))
+			shouldShowProc = volatility >= 30 and volatility <= 70
+		elseif procType == ProcsHUD.CodeEnumProcType.Esper5PP then -- Let's check if we have 5 Psy Points
+			local psyPoints = foxyLib.NullToZero(unitPlayer:GetResource(1))
+			shouldShowProc = psyPoints == 5
 		end
 	end
 
@@ -697,13 +780,17 @@ function ProcsHUD:GetSpellCooldown(spellId)
 end
 
 function ProcsHUD:GetSpellById(spellId)
+	if spellId < 0 then
+		return nil
+	end
+
 	-- Let's check the cache first
 	splObject = self.tSpellCache[spellId]
 	if splObject then
 		return splObject
 	end
 
-	local abilities = foxyLib.GetAbilitiesList()
+	local abilities = AbilityBook.GetAbilitiesList()
 	if not abilities then
 		return
 	end
@@ -717,6 +804,19 @@ function ProcsHUD:GetSpellById(spellId)
 					return tier.splObject
 				end
 			end
+		end
+	end
+end
+
+function ProcsHUD:GetCurrentTier(spellId)
+	local abilities = AbilityBook.GetAbilitiesList()
+	if not abilities then
+		return
+	end
+
+	for _, v in pairs(abilities) do
+		if v.nId == spellId then
+			return v.nCurrentTier
 		end
 	end
 end
@@ -764,8 +864,7 @@ function ProcsHUD:ShowSettingsUI()
 	-- Spells management settings
 	local tSpells = ProcsHUD.ProcSpells[unitPlayer:GetClassId()]
 	if not tSpells then
-		-- Not a class that we manage in this addon
-		Print("Esper doesn't have spells usable only after Procs. As a result, ProcsHUD is disabled for Esper characters.")
+		-- Not a class that we manage in this addon. Should never happen as we manage all 6 classes.
 		return
 	end
 
@@ -790,7 +889,6 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 	local wndSettingsBackground = self.wndSettings:FindChild("SettingsBackground")
 	for i, spell in pairs(tSpells) do
 		local spellId = spell[1]
-		local spellObject = self:GetSpellById(spellId)
 
 		local wndSpell = self.tWndSettingsSpells[i]
 		if not wndSpell then
@@ -798,6 +896,7 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 			local left, top, right, bottom = wndSpell:GetAnchorOffsets()
 			local offset = 60 * (i - 1)
 			wndSpell:SetAnchorOffsets(left, 275 + offset, right, 325 + offset)
+			Print((275 + offset) .. " " .. (325 + offset))
 			self.tWndSettingsSpells[i] = wndSpell
 		end
 
@@ -810,14 +909,20 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 		local spellSprite = ProcsHUD.CodeEnumProcSpellSprite[spellId]
 		local wndSpellIcon = wndSpell:FindChild("SpellIcon")
 		wndSpellIcon:SetSprite(spellSprite)
-		if Tooltip and Tooltip.GetSpellTooltipForm then
+		local spellObject = self:GetSpellById(spellId)
+		if spellObject and Tooltip and Tooltip.GetSpellTooltipForm then
 			wndSpellIcon:SetTooltipDoc(nil)
 			Tooltip.GetSpellTooltipForm(self, wndSpellIcon, spellObject)
 		end
 
 		-- Spell name
 		local spellName = ProcsHUD.CodeEnumProcSpellName[spellId]
-		wndSpell:FindChild("SpellName"):SetText(spellName)
+		local spellTooltip = ProcsHUD.CodeEnumProcSpellTooltip[spellId]
+		local wndSpellName = wndSpell:FindChild("SpellName")
+		wndSpellName:SetText(spellName)
+		if spellTooltip then
+			wndSpellName:SetTooltip(spellTooltip)
+		end
 
 		-- Spell sound
 		local spellSoundComboBox = wndSpell:FindChild("SpellSound")
@@ -839,6 +944,10 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 		local wndSpellSoundPlay = wndSpell:FindChild("SpellSoundPlay")
 		wndSpellSoundPlay:SetData(spellId)
 	end
+
+	-- wndSettings height management
+	local left, top, right, bottom = self.wndSettings:GetAnchorOffsets()
+	self.wndSettings:SetAnchorOffsets(left, top, right, 490 + 60 * #tSpells)
 end
 
 function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)

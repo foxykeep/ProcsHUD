@@ -55,14 +55,6 @@ function FoxyLib.NullToZero(d)
 	return d
 end
 
-local abilitiesList = nil
-function FoxyLib.GetAbilitiesList()
-	if abilitiesList == nil then
-		abilitiesList = AbilityBook.GetAbilitiesList()
-	end
-	return abilitiesList
-end
-
 -----------------------------------------------------------------------------------------------\
 -- FoxyLib locale functions
 -----------------------------------------------------------------------------------------------
