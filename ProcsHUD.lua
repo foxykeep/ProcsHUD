@@ -375,6 +375,7 @@ function ProcsHUD:OnLoad()
 
 	self.tActiveAbilities = {}
 	self.tSpellCache = {}
+	self.tLastSoundTimestamp = {}
 
 	self.bUnlockFrames = false
 	self.userSettings = foxyLib.DeepCopy(defaultSettings)
@@ -714,12 +715,12 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 				-- We are in hide mode, so we play the sound only if the wndProc was hidden before.
 				if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
 					if not wndProc:IsVisible() then
-						Sound.Play(spellSound)
+						self:PlaySound(spellSound, spellId)
 					end
 				-- We are in Overlay mode, so we play the sound only if the spell was on cooldown before.
 				elseif self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Overlay then
 					if self.lastCooldownLeft > 0 then
-						Sound.Play(spellSound)
+						self:PlaySoundy(spellSound, spellId)
 					end
 				end
 			end
@@ -733,6 +734,15 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 		wndProcIndex = wndProcIndex + 1
 	else
 		wndProc:Show(false)
+	end
+end
+
+function ProcsHUD:PlaySound(spellSound, spellId) 
+	local lastSpell = self.tLastSoundTimestamp[spellId]
+	Print(spellId)
+	if os.difftime(os.time(), lastSpell) > 0.5 then
+		self.tLastSoundTimestamp[spellId] = os.time()
+		Sound.Play(spellSound)
 	end
 end
 
