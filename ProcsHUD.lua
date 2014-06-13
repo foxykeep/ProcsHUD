@@ -739,7 +739,6 @@ end
 
 function ProcsHUD:PlaySound(spellSound, spellId) 
 	local lastSpell = self.tLastSoundTimestamp[spellId]
-	Print(spellId)
 	if os.difftime(os.time(), lastSpell) > 0.5 then
 		self.tLastSoundTimestamp[spellId] = os.time()
 		Sound.Play(spellSound)
