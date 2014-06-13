@@ -5,16 +5,12 @@
 
 require "Window"
 
--- Bugs
--- Dont show for procs not working with Atomize (but not dual shock !!)
-
 -- TODO
 -- Add option to adjust proc windows size
 -- Add a disabled mode to the list of spells in the settings according to the LAS. + tooltip
 -- Change hide to use SetOpacity instead (and add a setting for it)
 -- Class options:
 ---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
----- SS Assassinate if you have charges
 
 
 -----------------------------------------------------------------------------------------------
@@ -39,7 +35,8 @@ ProcsHUD.CodeEnumProcType = {
 	Deflect = 3,
 	NoShield = 4,
 	Engineer3070Resource = 5,
-	Esper5PP = 6
+	Esper5PP = 6,
+	HasCharges = 7
 }
 
 ProcsHUD.CodeEnumProcSpellId = {
@@ -50,6 +47,7 @@ ProcsHUD.CodeEnumProcSpellId = {
 	Ricochet = 25626,
 	-- Spellslinger
 	FlameBurst = 30666,
+	Assassinate = 23274,
 	-- Warrior
 	BreachingStrikes = 18580,
 	AtomicSpear = 18360,
@@ -70,9 +68,9 @@ ProcsHUD.CodeEnumProcSpellName = {
 	[ProcsHUD.CodeEnumProcSpellId.Feedback] = "Feedback",
 	[ProcsHUD.CodeEnumProcSpellId.BioShell] = "Bio Shell T4",
 	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = "Ricochet T4",
-
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = "FlameBurst",
+	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = "Assassinate",
 	-- Warrior
 	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = "Breaching Strikes",
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "Atomic Spear",
@@ -93,9 +91,9 @@ ProcsHUD.CodeEnumProcSpellTooltip = {
 	[ProcsHUD.CodeEnumProcSpellId.Feedback] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.BioShell] = "Instant cast of Bio Shell T4\nin the 30-70 volatility range",
 	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = "Instant cast of Ricochet T4\nin the 30-70 volatility range",
-
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = nil,
 	-- Warrior
 	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
@@ -118,6 +116,7 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = "ProcsHUDSprites:icon_Ricochet",
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = "ProcsHUDSprites:icon_FlameBurst",
+	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = "ProcsHUDSprites:icon_Assassinate",
 	-- Warrior
 	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = "ProcsHUDSprites:icon_BreachingStrikes",
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "ProcsHUDSprites:icon_AtomicSpear",
@@ -144,6 +143,7 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = nil,
 	-- Spellslinger
 	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = nil,
 	-- Warrior
 	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
@@ -179,7 +179,8 @@ ProcsHUD.ProcSpells = {
 		{ ProcsHUD.CodeEnumProcSpellId.Ricochet, ProcsHUD.CodeEnumProcType.Engineer3070Resource, 5 }
 	},
 	[GameLib.CodeEnumClass.Spellslinger] = {
-		{ ProcsHUD.CodeEnumProcSpellId.FlameBurst, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 }
+		{ ProcsHUD.CodeEnumProcSpellId.FlameBurst, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.Assassinate, ProcsHUD.CodeEnumProcType.HasCharges, 0 }
 	},
 	[GameLib.CodeEnumClass.Warrior] = {
 		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
@@ -221,6 +222,7 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.Ricochet] = true,
 		-- Spellslinger
 		[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Assassinate] = true,
 		-- Warrior
 		[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = true,
 		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = true,
@@ -242,6 +244,7 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.Ricochet] = -1,
 		-- Spellslinger
 		[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Assassinate] = -1,
 		-- Warrior
 		[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = -1,
@@ -606,6 +609,10 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 
 	-- Let's check if the spell is not in cooldown
 	local cooldownLeft, cooldownTotalDuration, chargesLeft = self:GetSpellCooldown(spellId)
+	local numChargesLeft = tonumber(chargesLeft)
+	if numChargesLeft then -- it's a valid number
+		chargesLeft = numChargesLeft
+	end 
 	if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
 		if cooldownLeft > 0 and chargesLeft == 0 then
 			-- The spell is in cooldown and we don't have any charge left (for a spell with charges).
@@ -660,6 +667,8 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 		elseif procType == ProcsHUD.CodeEnumProcType.Esper5PP then -- Let's check if we have 5 Psy Points
 			local psyPoints = foxyLib.NullToZero(unitPlayer:GetResource(1))
 			shouldShowProc = psyPoints == 5
+		elseif procType == ProcsHUD.CodeEnumProcType.HasCharges then -- We always show it if we have charges
+			shouldShowProc = true
 		end
 	end
 
@@ -679,8 +688,11 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 					cooldownText = math.floor(cooldownLeft / 3600) .. "h"
 				elseif cooldownLeft > 60 then
 					cooldownText = math.floor(cooldownLeft / 60) .. "m"
-				else
+				elseif cooldownLeft > 10 then
 					cooldownText = math.floor(cooldownLeft) .. "s"
+				else
+					local nbSeconds = math.floor(cooldownLeft)
+					cooldownText = nbSeconds .. "." .. math.floor((cooldownLeft - nbSeconds) * 10) .. "s"
 				end
 				wndProcCooldown:SetText(cooldownText)
 			else
@@ -688,6 +700,11 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 			end
 		else
 			wndProcCooldown:Show(false)
+		end
+
+		if procType == ProcsHUD.CodeEnumProcType.HasCharges and chargesLeft > 0 then
+			wndProcCooldown:Show(true)
+			wndProcCooldown:SetText(chargesLeft)
 		end
 
 		-- Play the sound if we should and we have a valid one
@@ -765,7 +782,9 @@ function ProcsHUD:GetSpellCooldown(spellId)
 	if charges and charges.nChargesMax > 0 then
 		-- Special spell with charges
 		if charges.fRechargePercentRemaining and charges.fRechargePercentRemaining > 0 then -- We are recharging charges
-			return charges.fRechargePercentRemaining * charges.fRechargeTime, charges.fRechargeTime, tostring(charges.nChargesRemaining)
+			return charges.fRechargePercentRemaining * charges.fRechargeTime, charges.fRechargeTime, charges.nChargesRemaining
+		else
+			return 0, 0, charges.nChargesRemaining
 		end
 	else
 		-- Standard spell with cooldown
@@ -896,7 +915,6 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 			local left, top, right, bottom = wndSpell:GetAnchorOffsets()
 			local offset = 60 * (i - 1)
 			wndSpell:SetAnchorOffsets(left, 275 + offset, right, 325 + offset)
-			Print((275 + offset) .. " " .. (325 + offset))
 			self.tWndSettingsSpells[i] = wndSpell
 		end
 
