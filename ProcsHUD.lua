@@ -496,7 +496,7 @@ function ProcsHUD:OnAbilityBookChangerTimer()
     local currentActionSet = ActionSetLib.GetCurrentActionSet()
 
 	for _, spell in pairs(tSpells) do
-		self:CheckAbility(currentActionSet, spell[1], spell[2])
+		self:CheckAbility(currentActionSet, spell[1], spell[3])
 	end
 end
 
