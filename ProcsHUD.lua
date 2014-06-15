@@ -516,7 +516,7 @@ function ProcsHUD:CheckAbility(currentActionSet, spellId, minTierNeeded)
     for _, nAbilityId in pairs(currentActionSet) do
         if nAbilityId == spellId then
 			local currentTier = self:GetCurrentTier(spellId)
-			if currentTier >= minTierNeeded then
+			if currentTier and currentTier >= minTierNeeded then
 				self.tActiveAbilities[spellId] = true
 			end
             return
