@@ -327,7 +327,7 @@ function ProcsHUD:OnRestore(eType, tSave)
 	end
 	-- Make sure the newly added spells are managed too.
 	for _, spellId in pairs(ProcsHUD.CodeEnumProcSpellId) do
-		if not self.userSettings.activeSpells[spellId] then
+		if self.userSettings.activeSpells[spellId] == nil then
 			self.userSettings.activeSpells[spellId] = defaultSettings.activeSpells[spellId]
 		end
 		if not self.userSettings.spellSounds[spellId] then
