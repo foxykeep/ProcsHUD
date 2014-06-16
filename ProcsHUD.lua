@@ -7,10 +7,15 @@ require "Window"
 
 -- TODO
 -- Add option to adjust proc windows size
--- Add a disabled mode to the list of spells in the settings according to the LAS. + tooltip
+
 -- Change hide to use SetOpacity instead (and add a setting for it)
+
+-- Add proc cooldown (and change teh cooldown version to have a gray overlay on top of it)
+
 -- Class options:
 ---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
+---- Warrior Relentless Strikes Tier 8 cooldown reset
+---- Medic Magnetic Lockdown T4 proc
 
 
 -----------------------------------------------------------------------------------------------
@@ -23,6 +28,14 @@ local foxyLib = nil
 -----------------------------------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------------------------------
+local CRITICAL_TIME = 5
+local DEFLECT_TIME = 4
+
+local SETTINGS_FRAME_HEIGHT = 520
+local SETTINGS_SPELL_ROW_HEIGHT = 60
+local SETTINGS_SPELL_ROW_TOP = 315
+local SETTINGS_SPELL_ROW_BOTTOM = 365
+
 ProcsHUD.CodeEnumLanguage = {
 	English = 1,
 	French = 2,
@@ -209,9 +222,6 @@ ProcsHUD.CodeEnumSounds = {
 	-1, 126, 127, 128, 141, 145, 196, 197, 198, 203, 207, 208, 212, 216, 220, 222, 223
 }
 
-local CRITICAL_TIME = 5
-local DEFLECT_TIME = 4
-
 local defaultSettings = {
 	cooldownLogic = ProcsHUD.CodeEnumCooldownLogic.Hide,
 	activeSpells = {
@@ -264,7 +274,8 @@ local defaultSettings = {
 		[3] = {250, 43, 324, 117},
 		[4] = {330, 43, 404, 117},
 	},
-	showOnlyInCombat = false
+	showOnlyInCombat = false,
+	showProcFrameBorder = true
 }
 
 -----------------------------------------------------------------------------------------------
@@ -308,6 +319,7 @@ function ProcsHUD:OnSave(eType)
     tSave.spellSounds = foxyLib.DeepCopy(self.userSettings.spellSounds)
     tSave.wndProcsPositions = foxyLib.DeepCopy(self.userSettings.wndProcsPositions)
     tSave.showOnlyInCombat = self.userSettings.showOnlyInCombat
+    tSave.showProcFrameBorder = self.userSettings.showProcFrameBorder
 
 	return tSave
 end
@@ -345,17 +357,23 @@ function ProcsHUD:OnRestore(eType, tSave)
 		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(defaultSettings.wndProcsPositions)
 	end
 
-	if tSave.showOnlyInCombat then
+	if tSave.showOnlyInCombat ~= nil then
 		self.userSettings.showOnlyInCombat = tSave.showOnlyInCombat
 	else
 		self.userSettings.showOnlyInCombat = defaultSettings.showOnlyInCombat
 	end
 
-	-- Data saved in future versions must be lazy restored (if present, grab from tSave else
+	if tSave.showProcFrameBorder ~= nil then
+		self.userSettings.showProcFrameBorder = tSave.showProcFrameBorder
+	else
+		self.userSettings.showProcFrameBorder = defaultSettings.showProcFrameBorder
+	end
+
+	-- Data saved in future versions must be lazy restored (if present (~= nil), grab from tSave else
 	-- grab from defaultSettings).
 
 	self.onRestoreCalled = true
-	self:PositionWndProcs()
+	self:SetupWndProcs()
 end
 
 
@@ -443,7 +461,7 @@ function ProcsHUD:OnDocLoaded()
 		Apollo.RegisterSlashCommand("ProcsHUD", "ShowSettingsUI", self)
 
 		self.onXmlDocLoadedCalled = true
-		self:PositionWndProcs()
+		self:SetupWndProcs()
 	end
 end
 
@@ -452,7 +470,7 @@ end
 -- Ability detection
 -----------------------------------------------------------------------------------------------
 
-function ProcsHUD:PositionWndProcs()
+function ProcsHUD:SetupWndProcs()
 	if not self.onRestoreCalled or not self.onXmlDocLoadedCalled then
 		return
 	end
@@ -461,6 +479,7 @@ function ProcsHUD:PositionWndProcs()
 	for index, wndProc in pairs(self.tWndProcs) do
 		local anchors = self.userSettings.wndProcsPositions[index]
 		wndProc:SetAnchorOffsets(anchors[1], anchors[2], anchors[3], anchors[4])
+		wndProc:SetStyle("Picture", self.userSettings.showProcFrameBorder)
 	end
 end
 
@@ -903,8 +922,9 @@ function ProcsHUD:ShowSettingsUI()
 end
 
 function ProcsHUD:SetupSettingsUI(tSpells)
-	-- Unlock Frames setting
+	-- Frames setting
 	self.wndSettings:FindChild("ButtonUnlockFrames"):SetCheck(self.bUnlockFrames)
+	self.wndSettings:FindChild("ButtonShowProcFrameBorder"):SetCheck(self.userSettings.showProcFrameBorder)
 
 	-- Cooldown management settings
 	if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
@@ -922,8 +942,8 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 		if not wndSpell then
 			wndSpell = Apollo.LoadForm(self.xmlDoc, "ProcsSettingsWndSpell", wndSettingsBackground, self)
 			local left, top, right, bottom = wndSpell:GetAnchorOffsets()
-			local offset = 60 * (i - 1)
-			wndSpell:SetAnchorOffsets(left, 275 + offset, right, 325 + offset)
+			local offset = SETTINGS_SPELL_ROW_HEIGHT * (i - 1)
+			wndSpell:SetAnchorOffsets(left, SETTINGS_SPELL_ROW_TOP + offset, right, SETTINGS_SPELL_ROW_BOTTOM + offset)
 			self.tWndSettingsSpells[i] = wndSpell
 		end
 
@@ -974,7 +994,7 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 
 	-- wndSettings height management
 	local left, top, right, bottom = self.wndSettings:GetAnchorOffsets()
-	self.wndSettings:SetAnchorOffsets(left, top, right, 490 + 60 * #tSpells)
+	self.wndSettings:SetAnchorOffsets(left, top, right, SETTINGS_FRAME_HEIGHT + SETTINGS_SPELL_ROW_HEIGHT * #tSpells)
 end
 
 function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)
@@ -1042,13 +1062,28 @@ function ProcsHUD:UnlockFrames()
 			local left, top, right, bottom = wndProc:GetAnchorOffsets()
 			self.userSettings.wndProcsPositions[index] = { left, top, right, bottom }
 		end
-		self:PositionWndProcs()
+		self:SetupWndProcs()
 	end
 end
 
 function ProcsHUD:SettingsOnRestorePositions(wndHandler, wndControl, eMouseButton)
 	self.userSettings.wndProcsPositions = foxyLib.DeepCopy(defaultSettings.wndProcsPositions)
-	self:PositionWndProcs()
+	self:SetupWndProcs()
+end
+
+function ProcsHUD:SettingsOnProcFrameBorderToggle(wndHandler, wndControl, eMouseButton)
+	self.userSettings.showProcFrameBorder = self.wndSettings:FindChild("ButtonShowProcFrameBorder"):IsChecked()
+
+	-- The frames are currently visible. So let's save their new position in the case where the user moved them.
+	-- Otherwise SetupWndProcs would make them jump back into place.
+	if self.bUnlockFrames then
+		for index, wndProc in pairs(self.tWndProcs) do
+			-- We also save the new positions to the user settings
+			local left, top, right, bottom = wndProc:GetAnchorOffsets()
+			self.userSettings.wndProcsPositions[index] = { left, top, right, bottom }
+		end
+	end
+	self:SetupWndProcs()
 end
 
 function ProcsHUD:SettingsOnInCombatToggle(wndHandler, wndControl, eMouseButton)
