@@ -14,7 +14,6 @@ require "Window"
 
 -- Class options:
 ---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
----- Warrior Relentless Strikes Tier 8 cooldown reset
 ---- Medic Magnetic Lockdown T4 proc
 
 
@@ -49,7 +48,8 @@ ProcsHUD.CodeEnumProcType = {
 	NoShield = 4,
 	Engineer3070Resource = 5,
 	Esper5PP = 6,
-	HasCharges = 7
+	HasCharges = 7,
+	Warrior250Resource = 8
 }
 
 ProcsHUD.CodeEnumProcSpellId = {
@@ -65,12 +65,14 @@ ProcsHUD.CodeEnumProcSpellId = {
 	BreachingStrikes = 18580,
 	AtomicSpear = 18360,
 	ShieldBurst = 37245,
+	Rampage = 37968,
 	-- Stalker
 	Punish = 32336,
 	Decimate = 31937,
 	-- Medic
 	Atomize = 25692,
 	DualShock = 47807,
+	Collider = 47793,
 	-- Esper
 	Esper5PP = -1
 }
@@ -88,12 +90,14 @@ ProcsHUD.CodeEnumProcSpellName = {
 	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = "Breaching Strikes",
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "Atomic Spear",
 	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = "Shield Burst",
+	[ProcsHUD.CodeEnumProcSpellId.Rampage] = "Rampage",
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = "Punish",
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "Decimate",
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "Atomize",
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "Dual Shock",
+	[ProcsHUD.CodeEnumProcSpellId.Collider] = "Collider",
 	-- Esper
 	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "5 Psy Points"
 }
@@ -111,12 +115,14 @@ ProcsHUD.CodeEnumProcSpellTooltip = {
 	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Rampage] = "Shown when over 250 KE. Useful\nfor the T8 Relentless Strikes",
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Collider] = nil,
 	-- Esper
 	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "Track when you have 5 Psy Points."
 }
@@ -134,40 +140,51 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = "ProcsHUDSprites:icon_BreachingStrikes",
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "ProcsHUDSprites:icon_AtomicSpear",
 	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = "ProcsHUDSprites:icon_ShieldBurst",
+	[ProcsHUD.CodeEnumProcSpellId.Rampage] = "ProcsHUDSprites:icon_Rampage",
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = "ProcsHUDSprites:icon_Punish",
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "ProcsHUDSprites:icon_Decimate",
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "ProcsHUDSprites:icon_Atomize",
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "ProcsHUDSprites:icon_DualShock",
+	[ProcsHUD.CodeEnumProcSpellId.Collider] = "ProcsHUDSprites:icon_Collider",
 	-- Esper
 	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "ProcsHUDSprites:icon_Esper5PP"
 }
 
 ProcsHUD.CodeEnumProcSpellBuff = {
 	-- Engineer
-	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = nil, -- Impossible to track the buff.
 	[ProcsHUD.CodeEnumProcSpellId.Feedback] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Feedback",
 		[ProcsHUD.CodeEnumLanguage.French] = "Rétroaction",
 		[ProcsHUD.CodeEnumLanguage.German] = "Rückkopplung"
 	},
-	[ProcsHUD.CodeEnumProcSpellId.BioShell] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.BioShell] = nil, -- No buff for this proc.
+	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = nil, -- No buff for this proc.
 	-- Spellslinger
-	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil, -- Impossible to track the buff.
+	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = nil, -- No buff for this proc.
 	-- Warrior
-	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = {
+		[ProcsHUD.CodeEnumLanguage.English] = "Breaching Strikes",
+		[ProcsHUD.CodeEnumLanguage.French] = "Frappes perforantes",
+		[ProcsHUD.CodeEnumLanguage.German] = "Durchbrechende Schläge"
+	},
+	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] =  nil,  -- Impossible to use. Other buffs with same name.
+	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = {
+		[ProcsHUD.CodeEnumLanguage.English] = "Shield Burst",
+		[ProcsHUD.CodeEnumLanguage.French] = "Décharge de bouclier",
+		[ProcsHUD.CodeEnumLanguage.German] = "Schildstoß"
+	},
+	[ProcsHUD.CodeEnumProcSpellId.Rampage] = nil, -- No buff for this proc.
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Punish",
 		[ProcsHUD.CodeEnumLanguage.French] = "Punition",
 		[ProcsHUD.CodeEnumLanguage.German] = "Übel zurichten"
 	},
-	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil, -- Impossible to use. Other buffs with same name.
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Clear!",
@@ -179,8 +196,9 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 		[ProcsHUD.CodeEnumLanguage.French] = "Dégagez !",
 		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
 	},
+	[ProcsHUD.CodeEnumProcSpellId.Collider] = nil, -- No buff for this proc.
 	-- Esper
-	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil -- No buff for this proc.
 }
 
 -- Values are { spellId, procType, minTierNeeded }
@@ -198,7 +216,8 @@ ProcsHUD.ProcSpells = {
 	[GameLib.CodeEnumClass.Warrior] = {
 		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
 		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect, 0 },
-		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield, 0 }
+		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.Rampage, ProcsHUD.CodeEnumProcType.Warrior250Resource, 0 }
 	},
 	[GameLib.CodeEnumClass.Stalker] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
@@ -206,7 +225,8 @@ ProcsHUD.ProcSpells = {
 	},
 	[GameLib.CodeEnumClass.Medic] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Atomize, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
-		{ ProcsHUD.CodeEnumProcSpellId.DualShock, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal, 0 }
+		{ ProcsHUD.CodeEnumProcSpellId.DualShock, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.Collider, ProcsHUD.CodeEnumProcType.HasCharges, 0 }
 	},
 	[GameLib.CodeEnumClass.Esper] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Esper5PP, ProcsHUD.CodeEnumProcType.Esper5PP, 0 }
@@ -237,12 +257,14 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = true,
 		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = true,
 		[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Rampage] = true,
 		-- Stalker
 		[ProcsHUD.CodeEnumProcSpellId.Punish] = true,
 		[ProcsHUD.CodeEnumProcSpellId.Decimate] = true,
 		-- Medic
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = true,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Collider] = true,
 		-- Esper
 		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = true,
 	},
@@ -259,12 +281,14 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Rampage] = -1,
 		-- Stalker
 		[ProcsHUD.CodeEnumProcSpellId.Punish] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.Decimate] = -1,
 		-- Medic
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Collider] = -1,
 		-- Esper
 		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = -1,
 	},
@@ -687,6 +711,9 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 		elseif procType == ProcsHUD.CodeEnumProcType.Esper5PP then -- Let's check if we have 5 Psy Points
 			local psyPoints = foxyLib.NullToZero(unitPlayer:GetResource(1))
 			shouldShowProc = psyPoints == 5
+		elseif procType == ProcsHUD.CodeEnumProcType.Warrior250Resource then -- Let's check if we have more than 250 KE
+			local kineticEnergy = foxyLib.NullToZero(unitPlayer:GetResource(1))
+			shouldShowProc = kineticEnergy >= 250
 		elseif procType == ProcsHUD.CodeEnumProcType.HasCharges then -- We always show it if we have charges
 			shouldShowProc = true
 		end
