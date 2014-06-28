@@ -16,6 +16,7 @@ require "Window"
 ---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
 ---- Warrior Relentless Strikes Tier 8 cooldown reset
 ---- Medic Magnetic Lockdown T4 proc
+---- Esper => add an option for 3/4/5 charges
 
 
 -----------------------------------------------------------------------------------------------
@@ -146,28 +147,36 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 
 ProcsHUD.CodeEnumProcSpellBuff = {
 	-- Engineer
-	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = nil, -- Impossible to track the buff.
 	[ProcsHUD.CodeEnumProcSpellId.Feedback] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Feedback",
 		[ProcsHUD.CodeEnumLanguage.French] = "Rétroaction",
 		[ProcsHUD.CodeEnumLanguage.German] = "Rückkopplung"
 	},
-	[ProcsHUD.CodeEnumProcSpellId.BioShell] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.BioShell] = nil, -- No buff for this proc.
+	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = nil, -- No buff for this proc.
 	-- Spellslinger
-	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil, -- Impossible to track the buff.
+	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = nil, -- No buff for this proc.
 	-- Warrior
-	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
-	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = {
+		[ProcsHUD.CodeEnumLanguage.English] = "Breaching Strikes",
+		[ProcsHUD.CodeEnumLanguage.French] = "Frappes perforantes",
+		[ProcsHUD.CodeEnumLanguage.German] = "Durchbrechende Schläge"
+	},
+	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] =  nil,  -- Impossible to use. Other buffs with same name.
+	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = {
+		[ProcsHUD.CodeEnumLanguage.English] = "Shield Burst",
+		[ProcsHUD.CodeEnumLanguage.French] = "Décharge de bouclier",
+		[ProcsHUD.CodeEnumLanguage.German] = "Schildstoß"
+	},
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Punish",
 		[ProcsHUD.CodeEnumLanguage.French] = "Punition",
 		[ProcsHUD.CodeEnumLanguage.German] = "Übel zurichten"
 	},
-	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil, -- Impossible to use. Other buffs with same name.
 	-- Medic
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Clear!",
@@ -180,7 +189,7 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
 	},
 	-- Esper
-	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil -- No buff for this proc.
 }
 
 -- Values are { spellId, procType, minTierNeeded }
