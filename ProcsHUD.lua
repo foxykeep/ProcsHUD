@@ -30,6 +30,8 @@ local foxyLib = nil
 local CRITICAL_TIME = 5
 local DEFLECT_TIME = 4
 
+local NB_PROC_WINDOWS = 5
+
 local SETTINGS_FRAME_HEIGHT = 520
 local SETTINGS_SPELL_ROW_HEIGHT = 60
 local SETTINGS_SPELL_ROW_TOP = 315
@@ -66,6 +68,7 @@ ProcsHUD.CodeEnumProcSpellId = {
 	AtomicSpear = 18360,
 	ShieldBurst = 37245,
 	Rampage = 37968,
+	Grapple = 18363,
 	-- Stalker
 	Punish = 32336,
 	Decimate = 31937,
@@ -91,6 +94,7 @@ ProcsHUD.CodeEnumProcSpellName = {
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "Atomic Spear",
 	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = "Shield Burst",
 	[ProcsHUD.CodeEnumProcSpellId.Rampage] = "Rampage",
+	[ProcsHUD.CodeEnumProcSpellId.Grapple] = "Grapple",
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = "Punish",
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "Decimate",
@@ -116,6 +120,7 @@ ProcsHUD.CodeEnumProcSpellTooltip = {
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.Rampage] = "Shown when over 250 KE. Useful\nfor the T8 Relentless Strikes",
+	[ProcsHUD.CodeEnumProcSpellId.Grapple] = nil,
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
@@ -141,6 +146,7 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = "ProcsHUDSprites:icon_AtomicSpear",
 	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = "ProcsHUDSprites:icon_ShieldBurst",
 	[ProcsHUD.CodeEnumProcSpellId.Rampage] = "ProcsHUDSprites:icon_Rampage",
+	[ProcsHUD.CodeEnumProcSpellId.Grapple] = "ProcsHUDSprites:icon_Grapple",
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = "ProcsHUDSprites:icon_Punish",
 	[ProcsHUD.CodeEnumProcSpellId.Decimate] = "ProcsHUDSprites:icon_Decimate",
@@ -178,6 +184,7 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 		[ProcsHUD.CodeEnumLanguage.German] = "Schildstoß"
 	},
 	[ProcsHUD.CodeEnumProcSpellId.Rampage] = nil, -- No buff for this proc.
+	[ProcsHUD.CodeEnumProcSpellId.Grapple] = nil, -- No buff for this proc.
 	-- Stalker
 	[ProcsHUD.CodeEnumProcSpellId.Punish] = {
 		[ProcsHUD.CodeEnumLanguage.English] = "Punish",
@@ -217,7 +224,8 @@ ProcsHUD.ProcSpells = {
 		{ ProcsHUD.CodeEnumProcSpellId.BreachingStrikes, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
 		{ ProcsHUD.CodeEnumProcSpellId.AtomicSpear, ProcsHUD.CodeEnumProcType.Deflect, 0 },
 		{ ProcsHUD.CodeEnumProcSpellId.ShieldBurst, ProcsHUD.CodeEnumProcType.NoShield, 0 },
-		{ ProcsHUD.CodeEnumProcSpellId.Rampage, ProcsHUD.CodeEnumProcType.Warrior250Resource, 0 }
+		{ ProcsHUD.CodeEnumProcSpellId.Rampage, ProcsHUD.CodeEnumProcType.Warrior250Resource, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.Grapple, ProcsHUD.CodeEnumProcType.HasCharges, 0 }
 	},
 	[GameLib.CodeEnumClass.Stalker] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Punish, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
@@ -258,6 +266,7 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = true,
 		[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = true,
 		[ProcsHUD.CodeEnumProcSpellId.Rampage] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Grapple] = true,
 		-- Stalker
 		[ProcsHUD.CodeEnumProcSpellId.Punish] = true,
 		[ProcsHUD.CodeEnumProcSpellId.Decimate] = true,
@@ -282,6 +291,7 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.Rampage] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Grapple] = -1,
 		-- Stalker
 		[ProcsHUD.CodeEnumProcSpellId.Punish] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.Decimate] = -1,
@@ -297,6 +307,7 @@ local defaultSettings = {
 		[2] = {330, -37, 404, 37},
 		[3] = {250, 43, 324, 117},
 		[4] = {330, 43, 404, 117},
+		[5] = {410, -37, 484, 37}
 	},
 	showOnlyInCombat = false,
 	showProcFrameBorder = true
@@ -376,6 +387,10 @@ function ProcsHUD:OnRestore(eType, tSave)
 		if #self.userSettings.wndProcsPositions == 3 then
 			-- We need to add the 4th procs position
 			self.userSettings.wndProcsPositions[4] = foxyLib.DeepCopy(defaultSettings.wndProcsPositions[4])
+		end
+		if #self.userSettings.wndProcsPositions == 4 then
+			-- We need to add the 5th procs position
+			self.userSettings.wndProcsPositions[5] = foxyLib.DeepCopy(defaultSettings.wndProcsPositions[5])
 		end
 	else
 		self.userSettings.wndProcsPositions = foxyLib.DeepCopy(defaultSettings.wndProcsPositions)
@@ -461,17 +476,15 @@ function ProcsHUD:OnDocLoaded()
 		self.tWndSettingsSpells = {}
 
 		-- Load the proc frame windows
-		self.tWndProcs = {
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self),
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self),
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self),
-			Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self)
-		}
-		if not self.tWndProcs[1] or not self.tWndProcs[2] or not self.tWndProcs[3] or not self.tWndProcs[4] then
-			Apollo.AddAddonErrorText(self, "Could not load the proc frame windows for some reason.")
-			return
+		self.tWndProcs = {}
+		for i = 1, NB_PROC_WINDOWS do
+			self.tWndProcs[i] = Apollo.LoadForm(self.xmlDoc, "ProcsIcon", nil, self)
 		end
 		for i, wndProc in pairs(self.tWndProcs) do
+			if not wndProc then
+				Apollo.AddAddonErrorText(self, "Could not load the proc frame windows for some reason.")
+				return
+			end
 			wndProc:Show(false)
 			wndProc:FindChild("Cooldown"):Show(false)
 		end
