@@ -31,6 +31,7 @@ local CRITICAL_TIME = 5
 local DEFLECT_TIME = 4
 
 local NB_PROC_WINDOWS = 5
+local PROC_WINDOW_SIZE = 74
 
 local SETTINGS_FRAME_HEIGHT = 520
 local SETTINGS_SPELL_ROW_HEIGHT = 60
@@ -310,7 +311,8 @@ local defaultSettings = {
 		[5] = {410, -37, 484, 37}
 	},
 	showOnlyInCombat = false,
-	showProcFrameBorder = true
+	showProcFrameBorder = true,
+	scale = 1.0
 }
 
 -----------------------------------------------------------------------------------------------
@@ -355,6 +357,7 @@ function ProcsHUD:OnSave(eType)
     tSave.wndProcsPositions = foxyLib.DeepCopy(self.userSettings.wndProcsPositions)
     tSave.showOnlyInCombat = self.userSettings.showOnlyInCombat
     tSave.showProcFrameBorder = self.userSettings.showProcFrameBorder
+    tSave.scale = self.userSettings.scale
 
 	return tSave
 end
@@ -406,6 +409,12 @@ function ProcsHUD:OnRestore(eType, tSave)
 		self.userSettings.showProcFrameBorder = tSave.showProcFrameBorder
 	else
 		self.userSettings.showProcFrameBorder = defaultSettings.showProcFrameBorder
+	end
+
+	if tSave.scale ~= nil then
+		self.userSettings.scale = tSave.scale
+	else
+		self.userSettings.scale = defaultSettings.scale
 	end
 
 	-- Data saved in future versions must be lazy restored (if present (~= nil), grab from tSave else
@@ -515,7 +524,9 @@ function ProcsHUD:SetupWndProcs()
 	-- Settings are restored and the windows are loaded. Let's position the views
 	for index, wndProc in pairs(self.tWndProcs) do
 		local anchors = self.userSettings.wndProcsPositions[index]
-		wndProc:SetAnchorOffsets(anchors[1], anchors[2], anchors[3], anchors[4])
+		wndProc:SetAnchorOffsets(anchors[1], anchors[2],
+			anchors[1] + PROC_WINDOW_SIZE * self.userSettings.scale,
+			anchors[2] + PROC_WINDOW_SIZE * self.userSettings.scale)
 		wndProc:SetStyle("Picture", self.userSettings.showProcFrameBorder)
 	end
 end
@@ -751,8 +762,7 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 				elseif cooldownLeft > 10 then
 					cooldownText = math.floor(cooldownLeft) .. "s"
 				else
-					local nbSeconds = math.floor(cooldownLeft)
-					cooldownText = nbSeconds .. "." .. math.floor((cooldownLeft - nbSeconds) * 10) .. "s"
+					cooldownText = self:FormatFloat(cooldownLeft, 1) .. "s"
 				end
 				wndProcCooldown:SetText(cooldownText)
 			else
@@ -908,6 +918,10 @@ function ProcsHUD:GetCurrentTier(spellId)
 	end
 end
 
+function ProcsHUD:FormatFloat(float, precision)
+	local num = math.floor(float)
+	return num .. "." .. math.floor((float - num) * math.pow(10, precision))
+end
 
 -----------------------------------------------------------------------------------------------
 -- Addon cleanup
@@ -965,6 +979,9 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 	-- Frames setting
 	self.wndSettings:FindChild("ButtonUnlockFrames"):SetCheck(self.bUnlockFrames)
 	self.wndSettings:FindChild("ButtonShowProcFrameBorder"):SetCheck(self.userSettings.showProcFrameBorder)
+
+	self.wndSettings:FindChild("ScaleSlider"):SetValue(self.userSettings.scale * 100)
+	self.wndSettings:FindChild("ScaleValue"):SetText(self:FormatFloat(self.userSettings.scale, 2))
 
 	-- Cooldown management settings
 	if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
@@ -1117,17 +1134,29 @@ function ProcsHUD:SettingsOnProcFrameBorderToggle(wndHandler, wndControl, eMouse
 	-- The frames are currently visible. So let's save their new position in the case where the user moved them.
 	-- Otherwise SetupWndProcs would make them jump back into place.
 	if self.bUnlockFrames then
-		for index, wndProc in pairs(self.tWndProcs) do
-			-- We also save the new positions to the user settings
-			local left, top, right, bottom = wndProc:GetAnchorOffsets()
-			self.userSettings.wndProcsPositions[index] = { left, top, right, bottom }
-		end
+		self:SaveProcFramePosition()
 	end
 	self:SetupWndProcs()
 end
 
 function ProcsHUD:SettingsOnInCombatToggle(wndHandler, wndControl, eMouseButton)
 	self.userSettings.showOnlyInCombat = self.wndSettings:FindChild("ButtonOnlyInCombat"):IsChecked()
+end
+
+function ProcsHUD:SettingsOnScaleSliderChanged( wndHandler, wndControl, fNewValue, fOldValue )
+	self:SaveProcFramePosition()
+	local scale = fNewValue / 100
+	self.userSettings.scale = scale
+	self.wndSettings:FindChild("ScaleValue"):SetText(self:FormatFloat(scale, 2))
+	self:SetupWndProcs()
+end
+
+function ProcsHUD:SaveProcFramePosition()
+	for index, wndProc in pairs(self.tWndProcs) do
+		-- We also save the new positions to the user settings
+		local left, top, right, bottom = wndProc:GetAnchorOffsets()
+		self.userSettings.wndProcsPositions[index] = { left, top, right, bottom }
+	end
 end
 
 function ProcsHUD:SettingsOnCooldownToggle(wndHandler, wndControl, eMouseButton)
