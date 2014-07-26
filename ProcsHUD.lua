@@ -35,8 +35,8 @@ local PROC_WINDOW_SIZE = 74
 
 local SETTINGS_FRAME_HEIGHT = 520
 local SETTINGS_SPELL_ROW_HEIGHT = 60
-local SETTINGS_SPELL_ROW_TOP = 315
-local SETTINGS_SPELL_ROW_BOTTOM = 365
+local SETTINGS_SPELL_ROW_TOP = 345
+local SETTINGS_SPELL_ROW_BOTTOM = 395
 
 ProcsHUD.CodeEnumLanguage = {
 	English = 1,
@@ -52,7 +52,8 @@ ProcsHUD.CodeEnumProcType = {
 	Engineer3070Resource = 5,
 	Esper5PP = 6,
 	HasCharges = 7,
-	Warrior250Resource = 8
+	Warrior250Resource = 8,
+	TakeCriticalDmg = 9
 }
 
 ProcsHUD.CodeEnumProcSpellId = {
@@ -77,6 +78,7 @@ ProcsHUD.CodeEnumProcSpellId = {
 	Atomize = 25692,
 	DualShock = 47807,
 	Collider = 47793,
+	MagneticLockdown = 26529,
 	-- Esper
 	Esper5PP = -1
 }
@@ -103,6 +105,7 @@ ProcsHUD.CodeEnumProcSpellName = {
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "Atomize",
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "Dual Shock",
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = "Collider",
+	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = "Magnetic Lockdown",
 	-- Esper
 	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "5 Psy Points"
 }
@@ -129,6 +132,7 @@ ProcsHUD.CodeEnumProcSpellTooltip = {
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = nil,
 	-- Esper
 	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "Track when you have 5 Psy Points."
 }
@@ -155,6 +159,7 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 	[ProcsHUD.CodeEnumProcSpellId.Atomize] = "ProcsHUDSprites:icon_Atomize",
 	[ProcsHUD.CodeEnumProcSpellId.DualShock] = "ProcsHUDSprites:icon_DualShock",
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = "ProcsHUDSprites:icon_Collider",
+	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = "ProcsHUDSprites:icon_MagneticLockdown",
 	-- Esper
 	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "ProcsHUDSprites:icon_Esper5PP"
 }
@@ -204,6 +209,11 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 		[ProcsHUD.CodeEnumLanguage.French] = "Dégagez !",
 		[ProcsHUD.CodeEnumLanguage.German] = "Bereinigen!"
 	},
+	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = {
+		[ProcsHUD.CodeEnumLanguage.English] = "Magnetic Lockdown",
+		[ProcsHUD.CodeEnumLanguage.French] = "Verrouillage magnétique",
+		[ProcsHUD.CodeEnumLanguage.German] = "Magnetische Sicherung"
+	},
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = nil, -- No buff for this proc.
 	-- Esper
 	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil -- No buff for this proc.
@@ -235,7 +245,8 @@ ProcsHUD.ProcSpells = {
 	[GameLib.CodeEnumClass.Medic] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Atomize, ProcsHUD.CodeEnumProcType.CriticalDmg, 0 },
 		{ ProcsHUD.CodeEnumProcSpellId.DualShock, ProcsHUD.CodeEnumProcType.CriticalDmgOrHeal, 0 },
-		{ ProcsHUD.CodeEnumProcSpellId.Collider, ProcsHUD.CodeEnumProcType.HasCharges, 0 }
+		{ ProcsHUD.CodeEnumProcSpellId.Collider, ProcsHUD.CodeEnumProcType.HasCharges, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.MagneticLockdown, ProcsHUD.CodeEnumProcType.TakeCriticalDmg, 5 }
 	},
 	[GameLib.CodeEnumClass.Esper] = {
 		{ ProcsHUD.CodeEnumProcSpellId.Esper5PP, ProcsHUD.CodeEnumProcType.Esper5PP, 0 }
@@ -275,6 +286,7 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = true,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = true,
 		[ProcsHUD.CodeEnumProcSpellId.Collider] = true,
+		[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = true,
 		-- Esper
 		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = true,
 	},
@@ -300,6 +312,7 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.Atomize] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.DualShock] = -1,
 		[ProcsHUD.CodeEnumProcSpellId.Collider] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = -1,
 		-- Esper
 		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = -1,
 	},
