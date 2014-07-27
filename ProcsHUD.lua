@@ -6,15 +6,12 @@
 require "Window"
 
 -- TODO
--- Add option to adjust proc windows size
-
 -- Change hide to use SetOpacity instead (and add a setting for it)
 
 -- Add proc cooldown (and change teh cooldown version to have a gray overlay on top of it)
 
 -- Class options:
 ---- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
----- Medic Magnetic Lockdown T4 proc
 
 
 -----------------------------------------------------------------------------------------------
@@ -80,7 +77,9 @@ ProcsHUD.CodeEnumProcSpellId = {
 	Collider = 47793,
 	MagneticLockdown = 26529,
 	-- Esper
-	Esper5PP = -1
+	Esper5PP = -1,
+	Bolster = 19031,
+	ConcentratedBlade = 28756
 }
 
 ProcsHUD.CodeEnumProcSpellName = {
@@ -107,7 +106,9 @@ ProcsHUD.CodeEnumProcSpellName = {
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = "Collider",
 	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = "Magnetic Lockdown",
 	-- Esper
-	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "5 Psy Points"
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "5 Psy Points",
+	[ProcsHUD.CodeEnumProcSpellId.Bolster] = "Bolster",
+	[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = "Concentrated Blade"
 }
 
 ProcsHUD.CodeEnumProcSpellTooltip = {
@@ -134,7 +135,9 @@ ProcsHUD.CodeEnumProcSpellTooltip = {
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = nil,
 	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = nil,
 	-- Esper
-	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "Track when you have 5 Psy Points."
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "Track when you have 5 Psy Points.",
+	[ProcsHUD.CodeEnumProcSpellId.Bolster] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = nil
 }
 
 ProcsHUD.CodeEnumProcSpellSprite = {
@@ -161,7 +164,9 @@ ProcsHUD.CodeEnumProcSpellSprite = {
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = "ProcsHUDSprites:icon_Collider",
 	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = "ProcsHUDSprites:icon_MagneticLockdown",
 	-- Esper
-	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "ProcsHUDSprites:icon_Esper5PP"
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = "ProcsHUDSprites:icon_Esper5PP",
+	[ProcsHUD.CodeEnumProcSpellId.Bolster] = "ProcsHUDSprites:icon_Bolster",
+	[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = "ProcsHUDSprites:icon_ConcentratedBlade"
 }
 
 ProcsHUD.CodeEnumProcSpellBuff = {
@@ -216,7 +221,9 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 	},
 	[ProcsHUD.CodeEnumProcSpellId.Collider] = nil, -- No buff for this proc.
 	-- Esper
-	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil -- No buff for this proc.
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil, -- No buff for this proc.
+	[ProcsHUD.CodeEnumProcSpellId.Bolster] = nil, -- No buff for this proc.
+	[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = nil -- No buff for this proc.
 }
 
 -- Values are { spellId, procType, minTierNeeded }
@@ -249,7 +256,9 @@ ProcsHUD.ProcSpells = {
 		{ ProcsHUD.CodeEnumProcSpellId.MagneticLockdown, ProcsHUD.CodeEnumProcType.TakeCriticalDmg, 5 }
 	},
 	[GameLib.CodeEnumClass.Esper] = {
-		{ ProcsHUD.CodeEnumProcSpellId.Esper5PP, ProcsHUD.CodeEnumProcType.Esper5PP, 0 }
+		{ ProcsHUD.CodeEnumProcSpellId.Esper5PP, ProcsHUD.CodeEnumProcType.Esper5PP, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.Bolster, ProcsHUD.CodeEnumProcType.HasCharges, 0 },
+		{ ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade, ProcsHUD.CodeEnumProcType.HasCharges, 0 }
 	}
 }
 
@@ -289,6 +298,8 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = true,
 		-- Esper
 		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = true,
+		[ProcsHUD.CodeEnumProcSpellId.Bolster] = true,
+		[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = true
 	},
 	spellSounds = {
 		-- Engineer
@@ -315,6 +326,8 @@ local defaultSettings = {
 		[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = -1,
 		-- Esper
 		[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.Bolster] = -1,
+		[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = -1
 	},
 	wndProcsPositions = {
 		[1] = {250, -37, 324, 37},
