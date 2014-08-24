@@ -5,15 +5,6 @@
 
 require "Window"
 
--- TODO
--- Change hide to use SetOpacity instead (and add a setting for it)
-
--- Add proc cooldown (and change teh cooldown version to have a gray overlay on top of it)
-
--- Class options:
----- Add an option for stalkers punish T8 to show the proc only on below 35 Suit power.
-
-
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD Module Definition
 -----------------------------------------------------------------------------------------------
@@ -34,6 +25,9 @@ local SETTINGS_FRAME_HEIGHT = 520
 local SETTINGS_SPELL_ROW_HEIGHT = 60
 local SETTINGS_SPELL_ROW_TOP = 345
 local SETTINGS_SPELL_ROW_BOTTOM = 395
+local SETTINGS_SPELL_SPECIAL_SETTING_ROW_HEIGHT = 35
+local SETTINGS_SPELL_SPECIAL_SETTING_ROW_TOP = 345
+local SETTINGS_SPELL_SPECIAL_SETTING_ROW_BOTTOM = 370
 
 ProcsHUD.CodeEnumLanguage = {
 	English = 1,
@@ -51,6 +45,14 @@ ProcsHUD.CodeEnumProcType = {
 	HasCharges = 7,
 	Warrior250Resource = 8,
 	TakeCriticalDmg = 9
+}
+
+ProcsHUD.CodeEnumSpecialSettingType = {
+	Punish35SuitPower = 1,
+}
+
+ProcsHUD.CodeEnumSpecialSettingWnd = {
+	[ProcsHUD.CodeEnumSpecialSettingType.Punish35SuitPower] = "ProcsSettingsWndPunishSetting"
 }
 
 ProcsHUD.CodeEnumProcSpellId = {
@@ -226,6 +228,35 @@ ProcsHUD.CodeEnumProcSpellBuff = {
 	[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = nil -- No buff for this proc.
 }
 
+ProcsHUD.CodeEnumProcSpellSpecialSetting = {
+	-- Engineer
+	[ProcsHUD.CodeEnumProcSpellId.QuickBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Feedback] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.BioShell] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Ricochet] = nil,
+	-- Spellslinger
+	[ProcsHUD.CodeEnumProcSpellId.FlameBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Assassinate] = nil,
+	-- Warrior
+	[ProcsHUD.CodeEnumProcSpellId.BreachingStrikes] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.AtomicSpear] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.ShieldBurst] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Rampage] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Grapple] = nil,
+	-- Stalker
+	[ProcsHUD.CodeEnumProcSpellId.Punish] = ProcsHUD.CodeEnumSpecialSettingType.Punish35SuitPower,
+	[ProcsHUD.CodeEnumProcSpellId.Decimate] = nil,
+	-- Medic
+	[ProcsHUD.CodeEnumProcSpellId.Atomize] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.DualShock] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Collider] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.MagneticLockdown] = nil,
+	-- Esper
+	[ProcsHUD.CodeEnumProcSpellId.Esper5PP] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.Bolster] = nil,
+	[ProcsHUD.CodeEnumProcSpellId.ConcentratedBlade] = nil,
+}
+
 -- Values are { spellId, procType, minTierNeeded }
 ProcsHUD.ProcSpells = {
 	[GameLib.CodeEnumClass.Engineer] = {
@@ -338,7 +369,10 @@ local defaultSettings = {
 	},
 	showOnlyInCombat = false,
 	showProcFrameBorder = true,
-	scale = 1.0
+	scale = 1.0,
+	specialSettings = {
+		[ProcsHUD.CodeEnumSpecialSettingType.Punish35SuitPower] = false
+	},
 }
 
 -----------------------------------------------------------------------------------------------
@@ -384,6 +418,7 @@ function ProcsHUD:OnSave(eType)
     tSave.showOnlyInCombat = self.userSettings.showOnlyInCombat
     tSave.showProcFrameBorder = self.userSettings.showProcFrameBorder
     tSave.scale = self.userSettings.scale
+    tSave.specialSettings = foxyLib.DeepCopy(self.userSettings.specialSettings)
 
 	return tSave
 end
@@ -443,6 +478,18 @@ function ProcsHUD:OnRestore(eType, tSave)
 		self.userSettings.scale = defaultSettings.scale
 	end
 
+	if tSave.specialSettings then
+		self.userSettings.specialSettings = foxyLib.DeepCopy(tSave.specialSettings)
+		for _, specialSettingType in pairs(ProcsHUD.CodeEnumSpecialSettingType) do
+			if self.userSettings.specialSettings[specialSettingType] == nil then
+				self.userSettings.specialSettings[specialSettingType] = foxyLib.DeepCopy(defaultSettings.specialSettings[specialSettingType])
+			end
+		end
+	else
+		self.userSettings.specialSettings = foxyLib.DeepCopy(defaultSettings.specialSettings)
+	end
+
+
 	-- Data saved in future versions must be lazy restored (if present (~= nil), grab from tSave else
 	-- grab from defaultSettings).
 
@@ -466,6 +513,7 @@ function ProcsHUD:OnLoad()
 	self.lastCooldownLeft = 0
 
 	self.tActiveAbilities = {}
+	self.tActiveAbilitiesCurrentTier = {}
 	self.tSpellCache = {}
 	self.tLastSoundTimestamp = {}
 
@@ -507,8 +555,9 @@ function ProcsHUD:OnDocLoaded()
 		end
 		self.wndSettings:Show(false)
 
-		-- Create the Settings spell windows array
+		-- Create the Settings spell windows array and the array for the spell settings (Punish Suit Power for example)
 		self.tWndSettingsSpells = {}
+		self.tWndSettingsSpellSettings = {}
 
 		-- Load the proc frame windows
 		self.tWndProcs = {}
@@ -588,6 +637,11 @@ function ProcsHUD:OnAbilityBookChangerTimer()
 
     local currentActionSet = ActionSetLib.GetCurrentActionSet()
 
+    -- Reset the tActivityAbility table
+    for spellId, value in pairs(self.tActiveAbilities) do
+		self.tActiveAbilities[spellId] = false
+		self.tActiveAbilitiesCurrentTier[spellId] = nil
+    end
 	for _, spell in pairs(tSpells) do
 		self:CheckAbility(currentActionSet, spell[1], spell[3])
 	end
@@ -597,10 +651,9 @@ function ProcsHUD:CheckAbility(currentActionSet, spellId, minTierNeeded)
 	if spellId < 0 then
 		-- Special case for the custom abilities (Esper 5 PP for example)
 		self.tActiveAbilities[spellId] = true
+		self.tActiveAbilitiesCurrentTier[spellId] = -1
 		return
 	end
-
-    self.tActiveAbilities[spellId] = false
 
     if not currentActionSet then
         return
@@ -611,6 +664,7 @@ function ProcsHUD:CheckAbility(currentActionSet, spellId, minTierNeeded)
 			local currentTier = self:GetCurrentTier(spellId)
 			if currentTier and currentTier >= minTierNeeded then
 				self.tActiveAbilities[spellId] = true
+				self.tActiveAbilitiesCurrentTier[spellId] = currentTier
 			end
             return
         end
@@ -706,7 +760,7 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 	local numChargesLeft = tonumber(chargesLeft)
 	if numChargesLeft then -- it's a valid number
 		chargesLeft = numChargesLeft
-	end 
+	end
 	if self.userSettings.cooldownLogic == ProcsHUD.CodeEnumCooldownLogic.Hide then
 		if cooldownLeft > 0 and chargesLeft == 0 then
 			-- The spell is in cooldown and we don't have any charge left (for a spell with charges).
@@ -766,6 +820,15 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 			shouldShowProc = kineticEnergy >= 250
 		elseif procType == ProcsHUD.CodeEnumProcType.HasCharges then -- We always show it if we have charges
 			shouldShowProc = true
+		end
+	end
+
+	-- Manage some special settings
+	local specialSettingType = ProcsHUD.CodeEnumProcSpellSpecialSetting[spellId]
+	if specialSettingType and specialSettingType == ProcsHUD.CodeEnumSpecialSettingType.Punish35SuitPower then
+		if self.userSettings.specialSettings[specialSettingType] then -- We show the proc only if we have less than 35 suit power if the user has T8 punish
+			local suitPower = foxyLib.NullToZero(unitPlayer:GetResource(3))
+			shouldShowProc = shouldShowProc and (suitPower < 35 or self.tActiveAbilitiesCurrentTier[spellId] < 9)
 		end
 	end
 
@@ -832,7 +895,7 @@ function ProcsHUD:ProcessProcsForSpell(unitPlayer, wndProcIndex, spell)
 	end
 end
 
-function ProcsHUD:PlaySound(spellSound, spellId) 
+function ProcsHUD:PlaySound(spellSound, spellId)
 	local lastSpell = self.tLastSoundTimestamp[spellId]
 	if os.difftime(os.time(), lastSpell) > 0.5 then
 		self.tLastSoundTimestamp[spellId] = os.time()
@@ -1018,6 +1081,7 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 
 	-- Spells management settings
 	local wndSettingsBackground = self.wndSettings:FindChild("SettingsBackground")
+	local numSpellSetting = 0
 	for i, spell in pairs(tSpells) do
 		local spellId = spell[1]
 
@@ -1025,8 +1089,9 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 		if not wndSpell then
 			wndSpell = Apollo.LoadForm(self.xmlDoc, "ProcsSettingsWndSpell", wndSettingsBackground, self)
 			local left, top, right, bottom = wndSpell:GetAnchorOffsets()
-			local offset = SETTINGS_SPELL_ROW_HEIGHT * (i - 1)
-			wndSpell:SetAnchorOffsets(left, SETTINGS_SPELL_ROW_TOP + offset, right, SETTINGS_SPELL_ROW_BOTTOM + offset)
+			local offset = SETTINGS_SPELL_ROW_HEIGHT * (i - 1) + SETTINGS_SPELL_SPECIAL_SETTING_ROW_HEIGHT * numSpellSetting
+			wndSpell:SetAnchorOffsets(left, SETTINGS_SPELL_ROW_TOP + offset,
+				right, SETTINGS_SPELL_ROW_BOTTOM + offset)
 			self.tWndSettingsSpells[i] = wndSpell
 		end
 
@@ -1073,11 +1138,33 @@ function ProcsHUD:SetupSettingsUI(tSpells)
 
 		local wndSpellSoundPlay = wndSpell:FindChild("SpellSoundPlay")
 		wndSpellSoundPlay:SetData(spellId)
+
+		-- specialSetting management.
+		local specialSetting = ProcsHUD.CodeEnumProcSpellSpecialSetting[spellId]
+		if specialSetting then
+			local wndSpecialSetting = self.tWndSettingsSpellSettings[i]
+			if not wndSpecialSetting then
+				wndSpecialSetting = Apollo.LoadForm(self.xmlDoc, ProcsHUD.CodeEnumSpecialSettingWnd[specialSetting],
+					wndSettingsBackground, self)
+				local left, top, right, bottom = wndSpecialSetting:GetAnchorOffsets()
+				local offset = SETTINGS_SPELL_ROW_HEIGHT * i + SETTINGS_SPELL_SPECIAL_SETTING_ROW_HEIGHT * numSpellSetting
+				wndSpecialSetting:SetAnchorOffsets(left, SETTINGS_SPELL_SPECIAL_SETTING_ROW_TOP + offset,
+					right, SETTINGS_SPELL_SPECIAL_SETTING_ROW_BOTTOM + offset)
+				self.tWndSettingsSpellSettings[i] = wndSpecialSetting
+				numSpellSetting = numSpellSetting + 1
+			end
+
+			-- Let's load the setting per spell
+			if specialSetting == ProcsHUD.CodeEnumSpecialSettingType.Punish35SuitPower then
+				local wndCheckBox = wndSpecialSetting:FindChild("CheckBox")
+				wndCheckBox:SetCheck(self.userSettings.specialSettings[ProcsHUD.CodeEnumSpecialSettingType.Punish35SuitPower])
+			end
+		end
 	end
 
 	-- wndSettings height management
 	local left, top, right, bottom = self.wndSettings:GetAnchorOffsets()
-	self.wndSettings:SetAnchorOffsets(left, top, right, SETTINGS_FRAME_HEIGHT + SETTINGS_SPELL_ROW_HEIGHT * #tSpells)
+	self.wndSettings:SetAnchorOffsets(left, top, right, SETTINGS_FRAME_HEIGHT + SETTINGS_SPELL_ROW_HEIGHT * #tSpells + SETTINGS_SPELL_SPECIAL_SETTING_ROW_HEIGHT * numSpellSetting)
 end
 
 function ProcsHUD:SettingsOnClose(wndHandler, wndControl, eMouseButton)
@@ -1259,6 +1346,17 @@ function ProcsHUD:SettingsOnSpellSoundPlay(wndHandler, wndControl, eMouseButton)
 		Sound.Play(spellSound)
 	end
 end
+
+function ProcsHUD:SettingsOnPunishToggle(wndHandler, wndControl, eMouseButton)
+	local unitPlayer = GameLib.GetPlayerUnit()
+	if not unitPlayer then
+		-- We don't have the player object yet.
+		return
+	end
+
+	self.userSettings.specialSettings[ProcsHUD.CodeEnumSpecialSettingType.Punish35SuitPower] = wndControl:IsChecked()
+end
+
 
 -----------------------------------------------------------------------------------------------
 -- ProcsHUD Instance
